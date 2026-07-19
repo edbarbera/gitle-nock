@@ -5,10 +5,23 @@ import SwiftUI
 /// Which screen of the expanded menu is showing.
 enum MenuScreen: Equatable {
     case main
+    /// Tick-list of changed files, everything on by default.
+    case pickFiles
+    /// Secrets or oversized files were spotted in the picked set.
+    case risks(RiskReport)
     case save
     case files
     case repos
     case confirmSend
+    /// Sending straight to a shared branch like main.
+    case confirmProtectedSend(String)
+    /// The project has no online home yet.
+    case connect
+    /// First-time setup for a folder git doesn't track yet.
+    case setup
+    case undo
+    case confirmDiscard
+    case conflicts
     case result(ActionResult)
 }
 
@@ -27,6 +40,23 @@ final class AppState: ObservableObject {
     @Published private(set) var busyLabel = ""
     @Published var screen: MenuScreen = .main
     @Published var saveMessage: String = ""
+
+    /// Files ticked on the save checklist. Seeded with everything that changed,
+    /// so the common case is still one tap.
+    @Published var pickedPaths: Set<String> = []
+
+    /// Conflicts from a half-finished grab, plus what the user chose for each.
+    @Published var conflicts: [ConflictFile] = []
+
+    /// Fields for the first-run setup flow and the "connect to GitHub" screen.
+    @Published var setupName: String = ""
+    @Published var setupEmail: String = ""
+    @Published var setupWantsGitignore: Bool = true
+    @Published var setupWantsFirstSave: Bool = true
+    @Published var remoteURL: String = ""
+
+    /// The description on the last save, shown before undoing it.
+    @Published private(set) var lastSaveMessage: String?
 
     /// True while a system window (the folder chooser) is on screen. The notch
     /// panel sits above the menu bar, so it has to step aside for one.
@@ -143,17 +173,24 @@ final class AppState: ObservableObject {
 
     func openActiveRepoInEditor() {
         guard let path = activeRepo?.path else { return }
-        let folder = URL(fileURLWithPath: path)
+        open(URL(fileURLWithPath: path))
+    }
 
+    /// Opens one file, used when someone wants to sort a conflict out by hand.
+    func openInEditor(relativePath: String) {
+        guard let root = activeRepo?.path else { return }
+        open(URL(fileURLWithPath: (root as NSString).appendingPathComponent(relativePath)))
+    }
+
+    private func open(_ target: URL) {
         guard let editor = Self.editorAppURL else {
             // Without VS Code installed, Finder is better than doing nothing.
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+            NSWorkspace.shared.selectFile(target.path, inFileViewerRootedAtPath: target.deletingLastPathComponent().path)
             return
         }
-
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        NSWorkspace.shared.open([folder], withApplicationAt: editor, configuration: configuration)
+        NSWorkspace.shared.open([target], withApplicationAt: editor, configuration: configuration)
     }
 
     // MARK: - Status
@@ -175,58 +212,363 @@ final class AppState: ObservableObject {
         Self.gitQueue.async {
             let fresh = GitReader.status(of: repo.path)
             let identity = GitReader.identity(in: repo.path)
+            let last = fresh.hasCommits ? GitReader.lastSaveMessage(in: repo.path) : nil
             DispatchQueue.main.async {
                 guard self.activeRepo?.id == repo.id else { return }
                 self.status = fresh
                 self.gitIdentity = identity
+                self.lastSaveMessage = last
             }
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Saving
+
+    /// Opens the file checklist with everything ticked — the default is still
+    /// "save it all", picking is the opt-in.
+    func beginSave() {
+        pickedPaths = Set(status.changes.map(\.path))
+        screen = .pickFiles
+    }
+
+    func togglePick(_ path: String) {
+        if pickedPaths.contains(path) {
+            pickedPaths.remove(path)
+        } else {
+            pickedPaths.insert(path)
+        }
+    }
+
+    func pickAll() { pickedPaths = Set(status.changes.map(\.path)) }
+    func pickNone() { pickedPaths = [] }
+
+    var pickedInOrder: [String] {
+        status.changes.map(\.path).filter { pickedPaths.contains($0) }
+    }
+
+    /// Runs the secret / big-file check on the picked set before asking for a
+    /// description, so a warning arrives before the user has typed anything.
+    func reviewPicked() {
+        guard let repo = activeRepo, !pickedPaths.isEmpty else { return }
+        let report = SafetyRails.review(paths: pickedInOrder, root: repo.path)
+        screen = report.isEmpty ? .save : .risks(report)
+    }
+
+    /// "Leave those out" — unticks every flagged file and carries on.
+    func dropFlagged(_ report: RiskReport) {
+        pickedPaths.subtract(report.allPaths)
+        if pickedPaths.isEmpty {
+            screen = .pickFiles
+        } else {
+            screen = .save
+        }
+    }
+
+    /// "Save them anyway" — the user has seen the warning and accepted it.
+    func acceptRisks() { screen = .save }
 
     func save() {
         let message = saveMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !message.isEmpty else { return }
-        perform(.save(message: message)) { [weak self] in
+        guard !message.isEmpty, let repo = activeRepo else { return }
+        let paths = pickedInOrder
+        guard !paths.isEmpty else { return }
+
+        runWrite(
+            busy: "Saving your work…",
+            success: paths.count == status.changes.count
+                ? "Saved."
+                : "Saved \(paths.count) of \(status.changes.count) files.",
+            failure: "That didn't work"
+        ) {
+            GitWriter.save(paths: paths, message: message, in: repo.path)
+        } onSuccess: { [weak self] in
             self?.saveMessage = ""
+            self?.pickedPaths = []
         }
     }
 
+    // MARK: - Sending
+
     func send() {
+        guard let repo = activeRepo else { return }
+
+        guard status.hasCommits else {
+            screen = .result(ActionResult(
+                succeeded: false,
+                title: "Nothing to send yet",
+                detail: "Save some work first, then send it online."
+            ))
+            return
+        }
+
+        // No online home: collect a link rather than dead-ending, which is what
+        // the CLI's interactive `gitle send` would offer to do here.
+        guard status.hasRemote else {
+            remoteURL = ""
+            screen = .connect
+            return
+        }
+
+        // The rail gitle can't reach headless: pushing straight to a shared branch.
+        if SafetyRails.isProtected(status.branch) {
+            screen = .confirmProtectedSend(status.branch)
+            return
+        }
+
         if settings.confirmBeforeSending {
             screen = .confirmSend
         } else {
-            perform(.send)
+            performSend(in: repo)
         }
     }
 
-    func confirmSend() { perform(.send) }
-    func grab() { perform(.grab) }
+    /// Past the protected-branch warning; honour the ordinary confirm too if it's on.
+    func confirmProtectedSend() {
+        guard let repo = activeRepo else { return }
+        if settings.confirmBeforeSending {
+            screen = .confirmSend
+        } else {
+            performSend(in: repo)
+        }
+    }
 
-    private func perform(_ action: GitleRunner.Action, onSuccess: (() -> Void)? = nil) {
-        guard let repo = activeRepo, !isBusy else { return }
+    func confirmSend() {
+        guard let repo = activeRepo else { return }
+        performSend(in: repo)
+    }
+
+    private func performSend(in repo: Repo) {
+        let branch = status.branch
+        let hasUpstream = status.hasUpstream
+
+        runWrite(busy: "Sending it online…", success: "Sent online.", failure: "Couldn't send") {
+            GitWriter.send(branch: branch, hasUpstream: hasUpstream, in: repo.path)
+        } explain: { result in
+            GitWriter.explainPushFailure(result.message)
+        }
+    }
+
+    /// Connects a GitHub link typed on the connect screen, then sends.
+    func connectAndSend() {
+        let url = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, let repo = activeRepo else { return }
+
+        runWrite(busy: "Connecting…", success: "Connected.", failure: "Couldn't connect that link") {
+            GitWriter.addRemote(url, in: repo.path)
+        } onSuccess: { [weak self] in
+            self?.remoteURL = ""
+            // Straight into the push; connecting on its own accomplishes nothing.
+            self?.send()
+        }
+    }
+
+    // MARK: - Grabbing
+
+    /// The one action still handled by gitle: `grab` has no prompts, so it works
+    /// headless and keeps its friendly conflict wording.
+    func grab() {
+        guard let repo = activeRepo else { return }
+        runWrite(busy: "Grabbing the latest…", success: "Got the latest.", failure: "Couldn't grab") {
+            GitleRunner.run(.grab, in: repo.path)
+        }
+    }
+
+    // MARK: - Undoing
+
+    func beginUndo() { screen = .undo }
+
+    func undoLastSave() {
+        guard let repo = activeRepo else { return }
+        runWrite(
+            busy: "Undoing your last save…",
+            success: "Undid your last save. Your changes are still here.",
+            failure: "Couldn't undo"
+        ) {
+            GitWriter.undoLastSave(in: repo.path)
+        }
+    }
+
+    func discardAllChanges() {
+        guard let repo = activeRepo else { return }
+        let hasCommits = status.hasCommits
+        runWrite(
+            busy: "Discarding changes…",
+            success: "Discarded everything unsaved. This folder now matches your last save.",
+            failure: "Couldn't discard"
+        ) {
+            GitWriter.discardAllChanges(hasCommits: hasCommits, in: repo.path)
+        }
+    }
+
+    // MARK: - Setting up
+
+    func beginSetup() {
+        // Pre-fill from the global git config so a returning user just confirms.
+        setupName = gitIdentity?.name ?? ""
+        setupEmail = gitIdentity?.email ?? ""
+        setupWantsGitignore = true
+        setupWantsFirstSave = true
+        screen = .setup
+    }
+
+    /// Runs every setup step in one go: init, identity, .gitignore, first save.
+    func runSetup() {
+        guard let repo = activeRepo else { return }
+        let name = setupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = setupEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wantsGitignore = setupWantsGitignore
+        let wantsFirstSave = setupWantsFirstSave
+        let alreadyRepo = status.isRepo
+
+        runWrite(busy: "Setting things up…", success: "All set!", failure: "Setup didn't finish") {
+            if !alreadyRepo {
+                let initialised = GitWriter.initRepo(in: repo.path)
+                guard initialised.succeeded else { return initialised }
+            }
+
+            if !name.isEmpty && !email.isEmpty {
+                let identity = GitWriter.setIdentity(name: name, email: email, in: repo.path)
+                guard identity.succeeded else { return identity }
+            }
+
+            if wantsGitignore {
+                let ignored = GitWriter.writeGitignore(in: repo.path)
+                guard ignored.succeeded else { return ignored }
+            }
+
+            // The first save comes last so the .gitignore written above is already
+            // in force — otherwise the junk it excludes lands in the very first snapshot.
+            if wantsFirstSave && GitReader.hasAnythingToSave(in: repo.path) {
+                let paths = GitReader.status(of: repo.path).changes.map(\.path)
+                let saved = GitWriter.save(paths: paths, message: "first version", in: repo.path)
+                guard saved.succeeded else { return saved }
+            }
+
+            return ShellResult(status: 0, stdout: "This folder is now yours to save and share.", stderr: "")
+        }
+    }
+
+    // MARK: - Conflicts
+
+    func beginConflicts() {
+        conflicts = status.conflictedFiles.map { ConflictFile(path: $0) }
+        screen = .conflicts
+    }
+
+    func resolve(_ path: String, as resolution: ConflictFile.Resolution) {
+        guard let repo = activeRepo,
+              conflicts.contains(where: { $0.path == path }),
+              resolution != .undecided
+        else { return }
+
+        // git here is a subprocess like any other, so it goes to the shared queue
+        // rather than stalling the panel mid-tap.
+        Self.gitQueue.async {
+            switch resolution {
+            case .keepOurs:
+                guard GitWriter.keepOurs(path, in: repo.path).succeeded else { return }
+            case .keepTheirs:
+                guard GitWriter.keepTheirs(path, in: repo.path).succeeded else { return }
+            case .editedByHand:
+                // Taking the user's word here would stage the `<<<<<<<` markers,
+                // which is worse than leaving the file conflicted. Check first.
+                guard !GitWriter.stillConflicted(path, in: repo.path) else {
+                    DispatchQueue.main.async {
+                        self.screen = .result(ActionResult(
+                            succeeded: false,
+                            title: "Still needs work",
+                            detail: "\(path) still has the <<<<<<< and >>>>>>> marker lines in it. Remove them, keep the version you want, save the file, then mark it done."
+                        ))
+                    }
+                    return
+                }
+            case .undecided:
+                return
+            }
+
+            guard GitWriter.markResolved(path, in: repo.path).succeeded else { return }
+
+            DispatchQueue.main.async {
+                guard self.activeRepo?.id == repo.id,
+                      let index = self.conflicts.firstIndex(where: { $0.path == path })
+                else { return }
+                self.conflicts[index].resolution = resolution
+            }
+        }
+    }
+
+    var allConflictsResolved: Bool {
+        !conflicts.isEmpty && conflicts.allSatisfy(\.isResolved)
+    }
+
+    func finishConflicts() {
+        guard let repo = activeRepo, allConflictsResolved else { return }
+        let op = status.mergeOp
+        runWrite(busy: "Finishing up…", success: "All sorted — you're up to date.", failure: "Couldn't finish") {
+            GitWriter.continueOp(op, in: repo.path)
+        } onSuccess: { [weak self] in
+            self?.conflicts = []
+        }
+    }
+
+    func abortConflicts() {
+        guard let repo = activeRepo else { return }
+        let op = status.mergeOp
+        runWrite(
+            busy: "Undoing it…",
+            success: "Backed it all out. You're where you started.",
+            failure: "Couldn't back out"
+        ) {
+            GitWriter.abortOp(op, in: repo.path)
+        } onSuccess: { [weak self] in
+            self?.conflicts = []
+        }
+    }
+
+    // MARK: - Running writes
+
+    /// Runs one write off the main thread, shows the spinner, then re-reads state.
+    ///
+    /// `explain` turns a failure into user-facing wording; without it the first
+    /// meaningful line of the tool's own output is used.
+    private func runWrite(
+        busy: String,
+        success: String,
+        failure: String,
+        work: @escaping () -> ShellResult,
+        explain: ((ShellResult) -> String)? = nil,
+        onSuccess: (() -> Void)? = nil
+    ) {
+        guard !isBusy, let repo = activeRepo else { return }
 
         isBusy = true
-        busyLabel = action.runningLabel
+        busyLabel = busy
         screen = .main
 
         Self.gitQueue.async {
-            let result = GitleRunner.run(action, in: repo.path)
-            let detail = GitleRunner.firstMeaningfulLine(of: result.succeeded ? result.stdout : result.message)
+            let result = work()
+            let detail = result.succeeded
+                ? GitleRunner.firstMeaningfulLine(of: result.stdout)
+                : (explain?(result) ?? GitleRunner.firstMeaningfulLine(of: result.message))
             // Re-read on this queue too; the main thread must not wait on git.
             let fresh = GitReader.status(of: repo.path)
+            let last = fresh.hasCommits ? GitReader.lastSaveMessage(in: repo.path) : nil
 
             DispatchQueue.main.async {
                 self.isBusy = false
                 self.busyLabel = ""
                 if result.succeeded { onSuccess?() }
-                self.screen = .result(ActionResult(
-                    succeeded: result.succeeded,
-                    title: result.succeeded ? action.successLabel : "That didn't work",
-                    detail: detail
-                ))
                 self.status = fresh
+                self.lastSaveMessage = last
+                // onSuccess may have kicked off another write (connect → send) or
+                // routed somewhere itself; don't bury either under a result card.
+                if !self.isBusy, case .main = self.screen {
+                    self.screen = .result(ActionResult(
+                        succeeded: result.succeeded,
+                        title: result.succeeded ? success : failure,
+                        detail: detail
+                    ))
+                }
             }
         }
     }
@@ -234,9 +576,11 @@ final class AppState: ObservableObject {
     /// Called when the notch collapses, so the next hover starts somewhere sensible.
     func resetTransientScreens() {
         switch screen {
-        case .save, .result, .confirmSend:
+        case .save, .result, .confirmSend, .pickFiles, .risks,
+             .confirmProtectedSend, .connect, .setup, .undo, .confirmDiscard:
             screen = .main
-        default:
+        case .main, .files, .repos, .conflicts:
+            // Conflicts survive a collapse: half-resolved state is worth keeping.
             break
         }
     }

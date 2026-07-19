@@ -1,38 +1,20 @@
 import Foundation
 
-/// Runs the `gitle` CLI for anything that changes the repo.
+/// Runs the `gitle` CLI.
 ///
-/// Every safety rail (secret detection, big-file warnings, the push-to-main nudge)
-/// lives in gitle, so mutations go through it rather than raw git.
+/// Only `grab` is left here. gitle's other commands all pause on a terminal
+/// prompt — a file checklist, "save these anyway?", "send to main anyway?" —
+/// and a prompt can't be answered from a headless subprocess, so gitle took its
+/// safe default and the action silently did nothing. Those questions are asked
+/// in the notch now and the underlying git command runs from `GitWriter`.
+/// `grab` has no prompts, so it still works exactly as the CLI does.
 enum GitleRunner {
     enum Action {
-        case save(message: String)
-        case send
         case grab
 
         var arguments: [String] {
             switch self {
-            // --all skips the interactive file checklist, which can't be answered
-            // from a subprocess. Per-file picking belongs in the notch UI later.
-            case .save(let message): return ["save", "--all", message]
-            case .send: return ["send"]
             case .grab: return ["grab"]
-            }
-        }
-
-        var runningLabel: String {
-            switch self {
-            case .save: return "Saving your work…"
-            case .send: return "Sending it online…"
-            case .grab: return "Grabbing the latest…"
-            }
-        }
-
-        var successLabel: String {
-            switch self {
-            case .save: return "Saved."
-            case .send: return "Sent online."
-            case .grab: return "Got the latest."
             }
         }
     }

@@ -5,9 +5,20 @@ struct SaveView: View {
     @EnvironmentObject private var state: AppState
     @FocusState private var focused: Bool
 
+    private var pickedSummary: String {
+        let picked = state.pickedPaths.count
+        let total = state.status.changes.count
+        if picked == total {
+            return "\(picked) file\(picked == 1 ? "" : "s") will be saved."
+        }
+        return "\(picked) of \(total) files will be saved — the rest stay as they are."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            BackHeader(title: "Save your work")
+            // Back lands on the checklist, not the menu: the picking step is what
+            // came before, and stepping over it would lose the selection.
+            BackHeader(title: "Save your work", back: { state.screen = .pickFiles })
 
             Text("Describe what you changed, in your own words.")
                 .font(.system(size: 11))
@@ -27,7 +38,9 @@ struct SaveView: View {
                 .focused($focused)
                 .onSubmit { state.save() }
 
-            Text("\(state.status.changes.count) file\(state.status.changes.count == 1 ? "" : "s") will be saved.")
+            // Reflects the checklist, not the whole repo — the two differ as soon
+            // as anything was unticked, and quietly saying "all 12" would be a lie.
+            Text(pickedSummary)
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.textFaint)
 
@@ -79,7 +92,7 @@ struct FilesView: View {
             }
 
             Spacer(minLength: 0)
-            HoverCard(action: { state.screen = .save }) {
+            HoverCard(action: { state.beginSave() }) {
                 Text("Save these")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -182,11 +195,14 @@ struct RepoRow: View {
 struct BackHeader: View {
     @EnvironmentObject private var state: AppState
     let title: String
+    /// Where the chevron goes. Defaults to the main menu; multi-step flows pass
+    /// their own previous step.
+    var back: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 6) {
             Button {
-                state.screen = .main
+                if let back { back() } else { state.screen = .main }
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11, weight: .semibold))

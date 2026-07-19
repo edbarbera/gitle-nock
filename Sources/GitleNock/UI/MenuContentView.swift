@@ -18,10 +18,18 @@ struct MenuContentView: View {
                 } else {
                     switch state.screen {
                     case .main: MainMenuView()
+                    case .pickFiles: PickFilesView()
+                    case .risks(let report): RiskView(report: report)
                     case .save: SaveView()
                     case .files: FilesView()
                     case .repos: ReposView()
                     case .confirmSend: ConfirmSendView()
+                    case .confirmProtectedSend(let branch): ConfirmProtectedSendView(branch: branch)
+                    case .connect: ConnectView()
+                    case .setup: SetupView()
+                    case .undo: UndoView()
+                    case .confirmDiscard: ConfirmDiscardView()
+                    case .conflicts: ConflictsView()
                     case .result(let result): ResultView(result: result)
                     }
                 }
@@ -52,11 +60,20 @@ struct MainMenuView: View {
                 ) { state.addRepo() }
             } else if !status.isRepo {
                 NoticeBlock(
-                    text: "This folder isn't set up for git yet. Run gitle start in it once, then come back.",
-                    actionTitle: nil,
-                    icon: "questionmark.folder",
-                    tint: Theme.textDim
-                ) {}
+                    text: "This folder isn't being tracked yet. Setting it up takes a few seconds and means you can always get back to how things were.",
+                    actionTitle: "Set it up",
+                    icon: "sparkles",
+                    tint: Theme.good
+                ) { state.beginSetup() }
+            } else if status.hasConflicts {
+                // Nothing else can move until these are settled, so this replaces
+                // the usual tiles rather than sitting alongside them.
+                NoticeBlock(
+                    text: "\(status.conflictedFiles.count) file\(status.conflictedFiles.count == 1 ? "" : "s") changed in two places at once. Pick which version to keep and everything carries on as normal.",
+                    actionTitle: "Sort it out",
+                    icon: "arrow.triangle.pull",
+                    tint: Theme.warn
+                ) { state.beginConflicts() }
             } else {
                 // Three tiles across: the panel is wide, so the primary actions sit
                 // side by side instead of stacking into a tall column.
@@ -69,7 +86,7 @@ struct MainMenuView: View {
                             ? "Nothing new to save"
                             : "\(status.changes.count) file\(status.changes.count == 1 ? "" : "s") changed",
                         enabled: !status.isClean
-                    ) { state.screen = .save }
+                    ) { state.beginSave() }
 
                     ActionTile(
                         icon: "arrow.up.circle.fill",
@@ -116,7 +133,7 @@ struct MainMenuView: View {
     }
 
     private var sendSubtitle: String {
-        if !status.hasRemote { return "gitle will offer to make an online copy" }
+        if !status.hasRemote { return "Not online yet — connect it first" }
         if status.ahead > 0 { return "\(status.ahead) save\(status.ahead == 1 ? "" : "s") ready to go" }
         return "Nothing waiting to send"
     }
@@ -257,6 +274,9 @@ struct FooterBar: View {
             }
             FooterButton(icon: "square.grid.2x2", help: "Switch project") {
                 state.screen = .repos
+            }
+            FooterButton(icon: "arrow.uturn.backward", help: "Go back / undo") {
+                state.beginUndo()
             }
             FooterButton(icon: "arrow.clockwise", help: "Refresh") {
                 state.forceRefresh()

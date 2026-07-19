@@ -39,6 +39,13 @@ enum GitReader {
             root: path
         )
 
+        // A clashing grab leaves a half-done rebase behind. Until it's settled,
+        // every other action is blocked, so the menu needs to know first.
+        status.mergeOp = currentOp(in: path)
+        if status.mergeOp != .none {
+            status.conflictedFiles = conflictedFiles(in: path)
+        }
+
         // "behind<TAB>ahead" relative to the tracking branch, if one exists.
         let counts = git(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], path)
         if counts.succeeded {
@@ -66,6 +73,52 @@ enum GitReader {
         let email = git(["config", "user.email"], path).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty || !email.isEmpty else { return nil }
         return (name, email)
+    }
+
+    /// Which half-finished operation, if any, the repo is sitting in.
+    ///
+    /// Read from the marker files in `.git` rather than by parsing status output,
+    /// which is how git itself decides.
+    static func currentOp(in path: String) -> MergeOp {
+        let dir = git(["rev-parse", "--absolute-git-dir"], path)
+        guard dir.succeeded else { return .none }
+        let gitDir = dir.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        func marker(_ name: String) -> Bool {
+            FileManager.default.fileExists(atPath: (gitDir as NSString).appendingPathComponent(name))
+        }
+
+        if marker("rebase-merge") || marker("rebase-apply") { return .rebase }
+        if marker("CHERRY_PICK_HEAD") { return .cherryPick }
+        if marker("MERGE_HEAD") { return .merge }
+        return .none
+    }
+
+    /// Paths git couldn't merge on its own — status code `U` on either side.
+    static func conflictedFiles(in path: String) -> [String] {
+        let out = git(["diff", "--name-only", "--diff-filter=U"], path)
+        guard out.succeeded else { return [] }
+        return out.stdout
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// The description on the most recent save, shown before undoing it so the
+    /// user can see exactly what they're about to remove.
+    static func lastSaveMessage(in path: String) -> String? {
+        let out = git(["log", "-1", "--pretty=%s"], path)
+        guard out.succeeded else { return nil }
+        let subject = out.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return subject.isEmpty ? nil : subject
+    }
+
+    /// True when the folder has files in it, so setup can offer a first save.
+    static func hasAnythingToSave(in path: String) -> Bool {
+        !git(["status", "--porcelain=v1", "-uall"], path)
+            .stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     private static func git(_ args: [String], _ path: String) -> ShellResult {
