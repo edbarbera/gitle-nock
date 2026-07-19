@@ -5,8 +5,24 @@ import SwiftUI
 struct NotchRootView: View {
     @EnvironmentObject private var state: AppState
     @EnvironmentObject private var viewModel: NotchViewModel
+    @EnvironmentObject private var settings: Settings
+
+    /// The hardware cutout must stay black no matter the appearance setting —
+    /// a light shell there would show as a visible rectangle instead of
+    /// blending into the notch bezel. Only the fallback pill (no real notch)
+    /// and the expanded menu follow light/dark.
+    private var shellColor: Color {
+        if !viewModel.isExpanded && viewModel.isRealNotch { return .black }
+        return Theme.shell
+    }
 
     var body: some View {
+        // Theme's colors are static vars, not @Published, so they can't notify
+        // SwiftUI on their own; setting this here (ahead of every Theme.x read
+        // below) and forcing a fresh identity with `.id()` is what makes a
+        // toggle in Settings actually repaint the panel.
+        let _ = { Theme.mode = settings.useLightAppearance ? .light : .dark }()
+
         VStack(spacing: 0) {
             collapsedBar
 
@@ -29,7 +45,7 @@ struct NotchRootView: View {
         )
         .background(
             NotchShape()
-                .fill(Theme.shell)
+                .fill(shellColor)
                 .shadow(color: .black.opacity(viewModel.isExpanded ? 0.5 : 0), radius: 18, y: 8)
         )
         .clipShape(NotchShape())
@@ -39,6 +55,7 @@ struct NotchRootView: View {
             maxHeight: .infinity,
             alignment: .top
         )
+        .id(settings.useLightAppearance)
     }
 
     /// What's visible when the menu is shut. On a real notch this hides behind the
@@ -87,5 +104,7 @@ struct StatusDot: View {
         Circle()
             .fill(color)
             .frame(width: 7, height: 7)
+            .shadow(color: color.opacity(0.9), radius: 3)
+            .shadow(color: color.opacity(0.45), radius: 7)
     }
 }

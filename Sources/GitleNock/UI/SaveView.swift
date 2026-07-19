@@ -44,10 +44,9 @@ struct SaveView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.textFaint)
 
-            HoverCard(action: { state.save() }) {
-                HStack {
-                    Image(systemName: "tray.and.arrow.down.fill")
-                        .foregroundStyle(Theme.warn)
+            HoverCard(tint: Theme.warn, action: { state.save() }) {
+                HStack(spacing: 8) {
+                    IconChip(icon: "tray.and.arrow.down.fill", tint: Theme.warn, size: 20)
                     Text("Save it")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
@@ -92,10 +91,13 @@ struct FilesView: View {
             }
 
             Spacer(minLength: 0)
-            HoverCard(action: { state.beginSave() }) {
-                Text("Save these")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+            HoverCard(tint: Theme.warn, action: { state.beginSave() }) {
+                HStack(spacing: 8) {
+                    IconChip(icon: "tray.and.arrow.down.fill", tint: Theme.warn, size: 20)
+                    Text("Save these")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                }
             }
         }
     }
@@ -126,11 +128,9 @@ struct ReposView: View {
             }
 
             Spacer(minLength: 0)
-            HoverCard(action: { state.addRepo() }) {
+            HoverCard(tint: Theme.accent, action: { state.addRepo() }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Theme.accent)
+                    IconChip(icon: "plus", tint: Theme.accent, size: 20)
                     Text("Add a project")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Theme.text)

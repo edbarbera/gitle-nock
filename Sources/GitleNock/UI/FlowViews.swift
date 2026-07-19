@@ -39,10 +39,13 @@ struct PickFilesView: View {
 
             Spacer(minLength: 0)
 
-            HoverCard(action: { state.reviewPicked() }) {
+            HoverCard(tint: picked == 0 ? nil : Theme.warn, action: { state.reviewPicked() }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .foregroundStyle(picked == 0 ? Theme.textFaint : Theme.warn)
+                    IconChip(
+                        icon: "arrow.right.circle.fill",
+                        tint: picked == 0 ? Theme.textFaint : Theme.warn,
+                        size: 20
+                    )
                     Text(picked == 0
                          ? "Pick at least one file"
                          : "Continue with \(picked) of \(total) file\(total == 1 ? "" : "s")")
@@ -113,9 +116,8 @@ struct RiskView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .foregroundStyle(Theme.bad)
+            HStack(spacing: 8) {
+                IconChip(icon: "exclamationmark.shield.fill", tint: Theme.bad)
                 Text("Worth a second look")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -147,9 +149,9 @@ struct RiskView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 10) {
-                HoverCard(action: { state.dropFlagged(report) }) {
+                HoverCard(tint: Theme.good, action: { state.dropFlagged(report) }) {
                     HStack(spacing: 7) {
-                        Image(systemName: "minus.circle.fill").foregroundStyle(Theme.good)
+                        IconChip(icon: "minus.circle.fill", tint: Theme.good, size: 20)
                         Text("Leave those out")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.text)
@@ -201,9 +203,8 @@ struct ConfirmProtectedSendView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.warn)
+            HStack(spacing: 8) {
+                IconChip(icon: "exclamationmark.triangle.fill", tint: Theme.warn)
                 Text("Sending straight to \(branch)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -223,9 +224,9 @@ struct ConfirmProtectedSendView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 10) {
-                HoverCard(action: { state.confirmProtectedSend() }) {
+                HoverCard(tint: Theme.accent, action: { state.confirmProtectedSend() }) {
                     HStack(spacing: 7) {
-                        Image(systemName: "arrow.up.circle.fill").foregroundStyle(Theme.accent)
+                        IconChip(icon: "arrow.up.circle.fill", tint: Theme.accent, size: 20)
                         Text("Send to \(branch)")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.text)
@@ -275,9 +276,9 @@ struct ConnectView: View {
 
             Spacer(minLength: 0)
 
-            HoverCard(action: { state.connectAndSend() }) {
+            HoverCard(tint: Theme.accent, action: { state.connectAndSend() }) {
                 HStack(spacing: 7) {
-                    Image(systemName: "link").foregroundStyle(Theme.accent)
+                    IconChip(icon: "link", tint: Theme.accent, size: 20)
                     Text("Connect and send")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.text)
@@ -343,9 +344,9 @@ struct SetupView: View {
 
             Spacer(minLength: 0)
 
-            HoverCard(action: { state.runSetup() }) {
+            HoverCard(tint: Theme.good, action: { state.runSetup() }) {
                 HStack(spacing: 7) {
-                    Image(systemName: "sparkles").foregroundStyle(Theme.good)
+                    IconChip(icon: "sparkles", tint: Theme.good, size: 20)
                     Text("Set it up")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
@@ -398,11 +399,10 @@ struct UndoView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.card))
 
-                HoverCard(action: { state.undoLastSave() }) {
-                    VStack(alignment: .leading, spacing: 2) {
+                HoverCard(tint: Theme.accent, action: { state.undoLastSave() }) {
+                    VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 7) {
-                            Image(systemName: "arrow.uturn.backward.circle.fill")
-                                .foregroundStyle(Theme.accent)
+                            IconChip(icon: "arrow.uturn.backward.circle.fill", tint: Theme.accent, size: 20)
                             Text("Undo that save")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.text)
@@ -420,10 +420,10 @@ struct UndoView: View {
             }
 
             if !state.status.isClean {
-                HoverCard(action: { state.screen = .confirmDiscard }) {
-                    VStack(alignment: .leading, spacing: 2) {
+                HoverCard(tint: Theme.bad, action: { state.screen = .confirmDiscard }) {
+                    VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 7) {
-                            Image(systemName: "trash.fill").foregroundStyle(Theme.bad)
+                            IconChip(icon: "trash.fill", tint: Theme.bad, size: 20)
                             Text("Throw away unsaved changes")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.text)
@@ -448,9 +448,8 @@ struct ConfirmDiscardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.octagon.fill")
-                    .foregroundStyle(Theme.bad)
+            HStack(spacing: 8) {
+                IconChip(icon: "exclamationmark.octagon.fill", tint: Theme.bad)
                 Text("This cannot be undone")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -484,9 +483,9 @@ struct ConfirmDiscardView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 10) {
-                HoverCard(action: { state.screen = .main }) {
+                HoverCard(tint: Theme.good, action: { state.screen = .main }) {
                     HStack(spacing: 7) {
-                        Image(systemName: "shield.fill").foregroundStyle(Theme.good)
+                        IconChip(icon: "shield.fill", tint: Theme.good, size: 20)
                         Text("Keep my changes")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.text)
@@ -513,9 +512,8 @@ struct ConflictsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "arrow.triangle.pull")
-                    .foregroundStyle(Theme.warn)
+            HStack(spacing: 8) {
+                IconChip(icon: "arrow.triangle.pull", tint: Theme.warn)
                 Text("Two versions of the same thing")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -539,10 +537,16 @@ struct ConflictsView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 10) {
-                HoverCard(action: { state.finishConflicts() }) {
+                HoverCard(
+                    tint: state.allConflictsResolved ? Theme.good : nil,
+                    action: { state.finishConflicts() }
+                ) {
                     HStack(spacing: 7) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(state.allConflictsResolved ? Theme.good : Theme.textFaint)
+                        IconChip(
+                            icon: "checkmark.circle.fill",
+                            tint: state.allConflictsResolved ? Theme.good : Theme.textFaint,
+                            size: 20
+                        )
                         Text(state.allConflictsResolved
                              ? "All done — finish up"
                              : "\(state.conflicts.filter(\.isResolved).count) of \(state.conflicts.count) sorted")

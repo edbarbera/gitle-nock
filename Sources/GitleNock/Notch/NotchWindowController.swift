@@ -8,7 +8,7 @@ final class NotchWindowController {
     /// Wide and shallow, so the menu reads as an extension of the notch rather
     /// than a column hanging off it. The height must clear the tallest screen's
     /// content — anything shorter silently clips the footer off the bottom.
-    static let expandedSize = CGSize(width: 780, height: 306)
+    static let expandedSize = CGSize(width: 780, height: 322)
 
     /// Above the menu bar, where the notch lives.
     static let floatingLevel = NSWindow.Level(Int(CGWindowLevelForKey(.mainMenuWindow)) + 2)
@@ -47,6 +47,7 @@ final class NotchWindowController {
             rootView: NotchRootView()
                 .environmentObject(state)
                 .environmentObject(viewModel)
+                .environmentObject(state.settings)
         )
 
         // Typing in the save box shouldn't be interrupted by the cursor wandering off.
@@ -90,6 +91,14 @@ final class NotchWindowController {
         panel.orderFrontRegardless()
         installMouseMonitors()
         installDebugToggle()
+
+        // Querying notch geometry the instant the app launches can catch macOS
+        // before the window server has settled, reading back a nil/zero notch
+        // area on hardware that really has one. A cheap second pass a moment
+        // later corrects a pill that's stuck showing on a real notch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.reposition()
+        }
     }
 
     /// Lets the menu be driven without a cursor, so the UI can be inspected and

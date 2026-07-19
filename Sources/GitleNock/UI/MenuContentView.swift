@@ -106,14 +106,12 @@ struct MainMenuView: View {
                         enabled: true
                     ) { state.grab() }
                 }
-                .frame(height: 94)
+                .frame(height: 100)
 
                 if !status.isClean {
                     HoverCard(action: { state.screen = .files }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "doc.on.doc.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.textDim)
+                            IconChip(icon: "doc.on.doc.fill", tint: Theme.warn, size: 20)
                             Text("See what changed")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(Theme.text)
@@ -150,12 +148,12 @@ struct ActionTile: View {
 
     @State private var hovering = false
 
+    private var isLit: Bool { hovering && enabled }
+
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 7) {
+                IconChip(icon: icon, tint: tint, size: 26)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 13, weight: .semibold))
@@ -172,12 +170,19 @@ struct ActionTile: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(hovering && enabled ? Theme.cardHover : Theme.card)
+                    .fill(isLit ? Theme.washHover(tint) : Theme.wash(tint))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isLit ? Theme.edgeHover(tint) : Theme.edge(tint), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.45)
+        .scaleEffect(isLit ? 1.02 : 1)
+        .shadow(color: tint.opacity(isLit ? 0.25 : 0), radius: 10, y: 4)
+        .animation(.easeOut(duration: 0.15), value: hovering)
         .onHover { hovering = $0 }
     }
 }
@@ -198,9 +203,9 @@ struct NoticeBlock: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let actionTitle {
-                HoverCard(action: action) {
+                HoverCard(tint: tint, action: action) {
                     HStack(spacing: 8) {
-                        Image(systemName: icon).foregroundStyle(tint)
+                        IconChip(icon: icon, tint: tint, size: 20)
                         Text(actionTitle)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.text)
@@ -216,14 +221,17 @@ struct SummaryHeader: View {
     @EnvironmentObject private var state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                 Text(state.status.branch.isEmpty ? "—" : state.status.branch)
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(Theme.textDim)
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Theme.accent.opacity(0.15)))
 
             Text(state.status.headline)
                 .font(.system(size: 15, weight: .semibold))
@@ -305,8 +313,11 @@ struct FooterButton: View {
             Image(systemName: icon)
                 .font(.system(size: 12))
                 .foregroundStyle(hovering ? Theme.text : Theme.textFaint)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(hovering ? Theme.cardHover : .clear))
         }
         .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .onHover { hovering = $0 }
         .help(help)
     }
@@ -337,8 +348,10 @@ struct ResultView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: result.succeeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(result.succeeded ? Theme.good : Theme.bad)
+                IconChip(
+                    icon: result.succeeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                    tint: result.succeeded ? Theme.good : Theme.bad
+                )
                 Text(result.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -399,9 +412,9 @@ struct NoRepoView: View {
                 .foregroundStyle(Theme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HoverCard(action: { state.addRepo() }) {
+            HoverCard(tint: Theme.accent, action: { state.addRepo() }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill").foregroundStyle(Theme.accent)
+                    IconChip(icon: "plus.circle.fill", tint: Theme.accent, size: 20)
                     Text("Choose a folder")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
@@ -431,9 +444,9 @@ struct ConfirmSendView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                HoverCard(action: { state.confirmSend() }) {
+                HoverCard(tint: Theme.accent, action: { state.confirmSend() }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "arrow.up.circle.fill").foregroundStyle(Theme.accent)
+                        IconChip(icon: "arrow.up.circle.fill", tint: Theme.accent, size: 20)
                         Text("Send it")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.text)

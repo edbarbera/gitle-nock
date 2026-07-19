@@ -71,6 +71,11 @@ struct SettingsView: View {
 
             Toggle("Ask me before sending work online", isOn: $settings.confirmBeforeSending)
 
+            Toggle("Light appearance for the notch menu", isOn: $settings.useLightAppearance)
+            Text("The hardware notch itself stays black either way — this only changes the menu that drops down from it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Toggle("Open gitle nock when I log in", isOn: $settings.launchAtLogin)
             if let error = settings.launchAtLoginError {
                 Text(error)

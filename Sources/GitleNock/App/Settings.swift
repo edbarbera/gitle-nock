@@ -22,6 +22,13 @@ final class Settings: ObservableObject {
         didSet { defaults.set(confirmBeforeSending, forKey: "settings.confirmBeforeSending") }
     }
 
+    /// Appearance of the notch menu itself, independent of the system's own
+    /// light/dark setting — the panel has always been a fixed dark theme, so
+    /// this needs its own switch rather than reading `NSApp.effectiveAppearance`.
+    @Published var useLightAppearance: Bool {
+        didSet { defaults.set(useLightAppearance, forKey: "settings.useLightAppearance") }
+    }
+
     @Published private(set) var launchAtLoginError: String?
 
     @Published var launchAtLogin: Bool {
@@ -37,6 +44,7 @@ final class Settings: ObservableObject {
 
         showPillWithoutNotch = defaults.object(forKey: "settings.showPillWithoutNotch") as? Bool ?? true
         confirmBeforeSending = defaults.object(forKey: "settings.confirmBeforeSending") as? Bool ?? false
+        useLightAppearance = defaults.object(forKey: "settings.useLightAppearance") as? Bool ?? false
         launchAtLogin = false
         launchAtLogin = isRegisteredForLogin
     }

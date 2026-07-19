@@ -19,10 +19,24 @@ struct NotchGeometry {
     var isHidden: Bool { !isRealNotch && !showsFallbackPill }
 
     static func current(showFallbackPill: Bool = true) -> NotchGeometry? {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+        // A notch is a property of one specific screen. Pick that screen whenever
+        // one is connected — mouse position or "main" (the screen with the key
+        // window) can land on a different display in any multi-monitor setup,
+        // which drew the fallback pill on a MacBook that has a real notch.
+        let notched = NSScreen.screens.first(where: Self.hasNotch)
+
+        guard let screen = notched
+            ?? NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
             ?? NSScreen.main
         else { return nil }
         return NotchGeometry(screen: screen, showsFallbackPill: showFallbackPill)
+    }
+
+    private static func hasNotch(_ screen: NSScreen) -> Bool {
+        guard #available(macOS 12.0, *) else { return false }
+        return screen.auxiliaryTopLeftArea != nil
+            && screen.auxiliaryTopRightArea != nil
+            && screen.safeAreaInsets.top > 0
     }
 
     init(screen: NSScreen, showsFallbackPill: Bool = true) {
@@ -32,10 +46,11 @@ struct NotchGeometry {
 
         // On notched Macs the menu bar is split into two auxiliary areas with the
         // notch sitting in the gap between them.
-        if #available(macOS 12.0, *),
-           let left = screen.auxiliaryTopLeftArea,
-           let right = screen.auxiliaryTopRightArea,
-           screen.safeAreaInsets.top > 0 {
+        if #available(macOS 12.0, *), Self.hasNotch(screen) {
+            // hasNotch already proved these are non-nil; re-read rather than thread
+            // the values through as extra parameters.
+            let left = screen.auxiliaryTopLeftArea!
+            let right = screen.auxiliaryTopRightArea!
             let width = frame.width - left.width - right.width
             let height = screen.safeAreaInsets.top
             collapsedSize = CGSize(width: width, height: height)
