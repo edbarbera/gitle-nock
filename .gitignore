@@ -1,0 +1,17 @@
+# Swift
+.build/
+DerivedData/
+xcuserdata/
+Packages/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets — never share these
+.env
+.env.local
+.env.*.local

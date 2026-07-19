@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>            <string>GitleNock</string>
+    <key>CFBundleDisplayName</key>     <string>gitle nock</string>
+    <key>CFBundleIdentifier</key>      <string>com.edbarbera.gitlenock</string>
+    <key>CFBundleExecutable</key>      <string>GitleNock</string>
+    <key>CFBundlePackageType</key>     <string>APPL</string>
+    <key>CFBundleShortVersionString</key> <string>0.1.0</string>
+    <key>CFBundleVersion</key>         <string>1</string>
+    <key>LSMinimumSystemVersion</key>  <string>13.0</string>
+    <key>LSUIElement</key>             <true/>
+    <key>NSHighResolutionCapable</key> <true/>
+
+    <!-- Projects usually live in Documents or Desktop, both gated by macOS.
+         Without these strings the prompt never appears and reads fail silently. -->
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>gitle needs to read the project folders you add so it can show what changed.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>gitle needs to read the project folders you add so it can show what changed.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>gitle needs to read the project folders you add so it can show what changed.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>gitle needs to read project folders stored on external drives.</string>
+</dict>
+</plist>
