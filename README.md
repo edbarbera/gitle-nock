@@ -18,7 +18,7 @@ Built for people meeting version control for the first time, usually because the
 │                                                           │
 │  See what changed   README.md, login.js, app.css          │
 │                                                           │
-│  </>  ▦  ↻  ⚙                                        ⏻   │
+│  </>  ▦  ↻  ⚙                                        ⏻    │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -26,11 +26,11 @@ Built for people meeting version control for the first time, usually because the
 
 A thin UI shell over the [gitle](https://github.com/edbarbera/gitle) CLI. gitle already turns git into friendly verbs and carries the safety rails (secret detection, big-file warnings, the push-to-main nudge). This app puts those verbs in the notch.
 
-| In the menu | gitle command | git underneath |
-|---|---|---|
-| Save your work | `gitle save --all "…"` | `add` + `commit` |
-| Send it online | `gitle send` | `push` |
-| Grab the latest | `gitle grab` | `pull --rebase` |
+| In the menu     | gitle command          | git underneath   |
+| --------------- | ---------------------- | ---------------- |
+| Save your work  | `gitle save --all "…"` | `add` + `commit` |
+| Send it online  | `gitle send`           | `push`           |
+| Grab the latest | `gitle grab`           | `pull --rebase`  |
 
 **Writes go through `gitle`. Reads go through `git` directly** — branch, changed files, ahead/behind counts. `gitle status` prints prose written for humans, and parsing it for UI state would break every time the wording is polished.
 
@@ -96,12 +96,12 @@ It runs as an accessory app: no Dock icon, no menu bar item. Its only presence i
 
 The dot in the notch summarises the project at a glance:
 
-| Dot | Meaning |
-|---|---|
-| 🟢 Green | Everything saved and sent |
-| 🟠 Amber | You have unsaved changes |
-| 🔵 Blue | Saved, but not in sync with online |
-| ⚪️ Grey | No project selected, or not a git repo |
+| Dot      | Meaning                                |
+| -------- | -------------------------------------- |
+| 🟢 Green | Everything saved and sent              |
+| 🟠 Amber | You have unsaved changes               |
+| 🔵 Blue  | Saved, but not in sync with online     |
+| ⚪️ Grey  | No project selected, or not a git repo |
 
 Footer icons, left to right: open in VS Code, switch project, refresh, settings, quit.
 
@@ -175,3 +175,4 @@ This is a prototype. Known gaps, in rough order of how likely you are to hit the
 ## Licence
 
 Not yet chosen.
+
