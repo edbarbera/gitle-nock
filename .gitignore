@@ -3,6 +3,7 @@
 DerivedData/
 xcuserdata/
 Packages/
+build/
 
 # OS files
 .DS_Store

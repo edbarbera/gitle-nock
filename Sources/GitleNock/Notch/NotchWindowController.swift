@@ -196,8 +196,9 @@ final class NotchWindowController {
             Task { @MainActor in self?.collapse() }
         }
         collapseWorkItem = work
-        // Grace period so travelling from the pill to the menu doesn't flicker it shut.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: work)
+        // Grace period so travelling from the pill to the menu doesn't flicker it
+        // shut. Short enough that leaving the panel still reads as immediate.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
     }
 
     private func cancelPendingCollapse() {
@@ -210,14 +211,15 @@ final class NotchWindowController {
         guard viewModel.isExpanded, !viewModel.isPinned else { return }
 
         state.resetTransientScreens()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.9)) {
             viewModel.isExpanded = false
         }
         panel.resignKey()
 
         // Once collapsed the panel is mostly transparent, so let clicks fall through
-        // to the menu bar underneath it.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { [weak self] in
+        // to the menu bar underneath it. Timed to the animation above, not the old
+        // grace period — closing shouldn't feel like it lingers after the mouse leaves.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
             guard let self, !self.viewModel.isExpanded else { return }
             self.panel.ignoresMouseEvents = true
         }

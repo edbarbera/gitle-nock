@@ -22,32 +22,41 @@ enum GitReader {
         }
         status.isRepo = true
 
-        status.hasCommits = git(["rev-parse", "--verify", "HEAD"], path).succeeded
+        // Every read below is independent of the others. Run them together —
+        // each `git` invocation costs process-launch overhead on top of the work
+        // itself, and running six of them back to back is what made a single
+        // refresh (every hover, every repo switch, every action) noticeably slow.
+        let reads = runConcurrently([
+            "hasCommits": { self.git(["rev-parse", "--verify", "HEAD"], path) },
+            "branch": { self.git(["rev-parse", "--abbrev-ref", "HEAD"], path) },
+            "remotes": { self.git(["remote"], path) },
+            // -uall lists files inside untracked folders. Without it git collapses
+            // them to "src/", which means nothing to someone who just wants to
+            // see their work.
+            "porcelain": { self.git(["status", "--porcelain=v1", "-uall"], path) },
+            "gitDir": { self.git(["rev-parse", "--absolute-git-dir"], path) },
+            // "behind<TAB>ahead" relative to the tracking branch, if one exists.
+            "counts": { self.git(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], path) },
+        ])
 
-        let branch = git(["rev-parse", "--abbrev-ref", "HEAD"], path)
-        status.branch = branch.succeeded
-            ? branch.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        status.hasCommits = reads["hasCommits"]!.succeeded
+
+        status.branch = reads["branch"]!.succeeded
+            ? reads["branch"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             : "main"
 
-        let remotes = git(["remote"], path)
-        status.hasRemote = !remotes.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        status.hasRemote = !reads["remotes"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        // -uall lists files inside untracked folders. Without it git collapses them
-        // to "src/", which means nothing to someone who just wants to see their work.
-        status.changes = parsePorcelain(
-            git(["status", "--porcelain=v1", "-uall"], path).stdout,
-            root: path
-        )
+        status.changes = parsePorcelain(reads["porcelain"]!.stdout, root: path)
 
         // A clashing grab leaves a half-done rebase behind. Until it's settled,
         // every other action is blocked, so the menu needs to know first.
-        status.mergeOp = currentOp(in: path)
+        status.mergeOp = mergeOp(fromGitDir: reads["gitDir"]!)
         if status.mergeOp != .none {
             status.conflictedFiles = conflictedFiles(in: path)
         }
 
-        // "behind<TAB>ahead" relative to the tracking branch, if one exists.
-        let counts = git(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], path)
+        let counts = reads["counts"]!
         if counts.succeeded {
             let parts = counts.stdout
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,6 +71,27 @@ enum GitReader {
         return status
     }
 
+    /// Runs several independent shell calls at once and waits for all of them.
+    /// Every git invocation in this file is read-only and side-effect free, so
+    /// nothing here needs to run in a particular order relative to the others.
+    private static func runConcurrently(_ work: [String: () -> ShellResult]) -> [String: ShellResult] {
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "gitlenock.reader", attributes: .concurrent)
+        let lock = NSLock()
+        var results: [String: ShellResult] = [:]
+
+        for (key, task) in work {
+            queue.async(group: group) {
+                let result = task()
+                lock.lock()
+                results[key] = result
+                lock.unlock()
+            }
+        }
+        group.wait()
+        return results
+    }
+
     /// True if the folder is inside a git repo at all — used when adding a repo.
     static func isRepo(_ path: String) -> Bool {
         git(["rev-parse", "--is-inside-work-tree"], path).succeeded
@@ -69,8 +99,12 @@ enum GitReader {
 
     /// The name git will stamp on saves. Shown in settings so the user can sanity-check it.
     static func identity(in path: String) -> (name: String, email: String)? {
-        let name = git(["config", "user.name"], path).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        let email = git(["config", "user.email"], path).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reads = runConcurrently([
+            "name": { self.git(["config", "user.name"], path) },
+            "email": { self.git(["config", "user.email"], path) },
+        ])
+        let name = reads["name"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = reads["email"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty || !email.isEmpty else { return nil }
         return (name, email)
     }
@@ -80,7 +114,10 @@ enum GitReader {
     /// Read from the marker files in `.git` rather than by parsing status output,
     /// which is how git itself decides.
     static func currentOp(in path: String) -> MergeOp {
-        let dir = git(["rev-parse", "--absolute-git-dir"], path)
+        mergeOp(fromGitDir: git(["rev-parse", "--absolute-git-dir"], path))
+    }
+
+    private static func mergeOp(fromGitDir dir: ShellResult) -> MergeOp {
         guard dir.succeeded else { return .none }
         let gitDir = dir.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 
