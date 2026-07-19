@@ -120,7 +120,9 @@ final class AppState: ObservableObject {
         defer { isPresentingSystemPanel = false }
 
         // An accessory app needs a real activation for the chooser to come forward.
-        NSApp.activate(ignoringOtherApps: true)
+        // Activating when already active still costs a round trip through the
+        // window server on some macOS versions, so skip it when there's nothing to do.
+        if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
         panel.level = .modalPanel
         panel.makeKeyAndOrderFront(nil)
 
@@ -210,9 +212,7 @@ final class AppState: ObservableObject {
         // Subprocesses block their thread. Swift's cooperative pool is small and
         // must never be blocked, so shell work gets its own queue.
         Self.gitQueue.async {
-            let fresh = GitReader.status(of: repo.path)
-            let identity = GitReader.identity(in: repo.path)
-            let last = fresh.hasCommits ? GitReader.lastSaveMessage(in: repo.path) : nil
+            let (fresh, identity, last) = Self.readRepoState(repo.path)
             DispatchQueue.main.async {
                 guard self.activeRepo?.id == repo.id else { return }
                 self.status = fresh
@@ -220,6 +220,30 @@ final class AppState: ObservableObject {
                 self.lastSaveMessage = last
             }
         }
+    }
+
+    /// A concurrent queue for fanning independent reads out from `gitQueue`.
+    /// `gitQueue` itself is serial (subprocess work must not pile onto the
+    /// cooperative pool), so waiting on sub-tasks submitted back to `gitQueue`
+    /// would deadlock — it only ever runs one block at a time.
+    private nonisolated static let readFanoutQueue = DispatchQueue(label: "gitlenock.git.fanout", attributes: .concurrent)
+
+    /// `status`, `identity`, and the last save message are all independent reads.
+    /// Running them one after another was the biggest single cost in a refresh —
+    /// this fires on every hover, every repo switch, and after every action.
+    /// `nonisolated` because it always runs on `gitQueue`, off the main actor.
+    private nonisolated static func readRepoState(_ path: String) -> (RepoStatus, (name: String, email: String)?, String?) {
+        var status = RepoStatus.empty
+        var identity: (name: String, email: String)?
+
+        let group = DispatchGroup()
+        group.enter(); readFanoutQueue.async { status = GitReader.status(of: path); group.leave() }
+        group.enter(); readFanoutQueue.async { identity = GitReader.identity(in: path); group.leave() }
+        group.wait()
+
+        // Only worth asking once we know there's a commit to describe.
+        let last = status.hasCommits ? GitReader.lastSaveMessage(in: path) : nil
+        return (status, identity, last)
     }
 
     // MARK: - Saving
@@ -273,13 +297,7 @@ final class AppState: ObservableObject {
         let paths = pickedInOrder
         guard !paths.isEmpty else { return }
 
-        runWrite(
-            busy: "Saving your work…",
-            success: paths.count == status.changes.count
-                ? "Saved."
-                : "Saved \(paths.count) of \(status.changes.count) files.",
-            failure: "That didn't work"
-        ) {
+        runWrite(busy: "Saving your work…", failure: "That didn't work") {
             GitWriter.save(paths: paths, message: message, in: repo.path)
         } onSuccess: { [weak self] in
             self?.saveMessage = ""
@@ -341,7 +359,7 @@ final class AppState: ObservableObject {
         let branch = status.branch
         let hasUpstream = status.hasUpstream
 
-        runWrite(busy: "Sending it online…", success: "Sent online.", failure: "Couldn't send") {
+        runWrite(busy: "Sending it online…", failure: "Couldn't send") {
             GitWriter.send(branch: branch, hasUpstream: hasUpstream, in: repo.path)
         } explain: { result in
             GitWriter.explainPushFailure(result.message)
@@ -353,7 +371,7 @@ final class AppState: ObservableObject {
         let url = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty, let repo = activeRepo else { return }
 
-        runWrite(busy: "Connecting…", success: "Connected.", failure: "Couldn't connect that link") {
+        runWrite(busy: "Connecting…", failure: "Couldn't connect that link") {
             GitWriter.addRemote(url, in: repo.path)
         } onSuccess: { [weak self] in
             self?.remoteURL = ""
@@ -368,7 +386,7 @@ final class AppState: ObservableObject {
     /// headless and keeps its friendly conflict wording.
     func grab() {
         guard let repo = activeRepo else { return }
-        runWrite(busy: "Grabbing the latest…", success: "Got the latest.", failure: "Couldn't grab") {
+        runWrite(busy: "Grabbing the latest…", failure: "Couldn't grab") {
             GitleRunner.run(.grab, in: repo.path)
         }
     }
@@ -379,11 +397,7 @@ final class AppState: ObservableObject {
 
     func undoLastSave() {
         guard let repo = activeRepo else { return }
-        runWrite(
-            busy: "Undoing your last save…",
-            success: "Undid your last save. Your changes are still here.",
-            failure: "Couldn't undo"
-        ) {
+        runWrite(busy: "Undoing your last save…", failure: "Couldn't undo") {
             GitWriter.undoLastSave(in: repo.path)
         }
     }
@@ -391,11 +405,7 @@ final class AppState: ObservableObject {
     func discardAllChanges() {
         guard let repo = activeRepo else { return }
         let hasCommits = status.hasCommits
-        runWrite(
-            busy: "Discarding changes…",
-            success: "Discarded everything unsaved. This folder now matches your last save.",
-            failure: "Couldn't discard"
-        ) {
+        runWrite(busy: "Discarding changes…", failure: "Couldn't discard") {
             GitWriter.discardAllChanges(hasCommits: hasCommits, in: repo.path)
         }
     }
@@ -420,7 +430,7 @@ final class AppState: ObservableObject {
         let wantsFirstSave = setupWantsFirstSave
         let alreadyRepo = status.isRepo
 
-        runWrite(busy: "Setting things up…", success: "All set!", failure: "Setup didn't finish") {
+        runWrite(busy: "Setting things up…", failure: "Setup didn't finish") {
             if !alreadyRepo {
                 let initialised = GitWriter.initRepo(in: repo.path)
                 guard initialised.succeeded else { return initialised }
@@ -504,7 +514,7 @@ final class AppState: ObservableObject {
     func finishConflicts() {
         guard let repo = activeRepo, allConflictsResolved else { return }
         let op = status.mergeOp
-        runWrite(busy: "Finishing up…", success: "All sorted — you're up to date.", failure: "Couldn't finish") {
+        runWrite(busy: "Finishing up…", failure: "Couldn't finish") {
             GitWriter.continueOp(op, in: repo.path)
         } onSuccess: { [weak self] in
             self?.conflicts = []
@@ -514,11 +524,7 @@ final class AppState: ObservableObject {
     func abortConflicts() {
         guard let repo = activeRepo else { return }
         let op = status.mergeOp
-        runWrite(
-            busy: "Undoing it…",
-            success: "Backed it all out. You're where you started.",
-            failure: "Couldn't back out"
-        ) {
+        runWrite(busy: "Undoing it…", failure: "Couldn't back out") {
             GitWriter.abortOp(op, in: repo.path)
         } onSuccess: { [weak self] in
             self?.conflicts = []
@@ -529,11 +535,15 @@ final class AppState: ObservableObject {
 
     /// Runs one write off the main thread, shows the spinner, then re-reads state.
     ///
+    /// On success this lands back on the main screen — the refreshed status
+    /// already says what happened ("Everything saved and sent"), so parking on a
+    /// separate success card was just an extra tap for no new information. A
+    /// failure still gets its own screen, since there's no headline for that.
+    ///
     /// `explain` turns a failure into user-facing wording; without it the first
     /// meaningful line of the tool's own output is used.
     private func runWrite(
         busy: String,
-        success: String,
         failure: String,
         work: @escaping () -> ShellResult,
         explain: ((ShellResult) -> String)? = nil,
@@ -548,26 +558,23 @@ final class AppState: ObservableObject {
         Self.gitQueue.async {
             let result = work()
             let detail = result.succeeded
-                ? GitleRunner.firstMeaningfulLine(of: result.stdout)
+                ? nil
                 : (explain?(result) ?? GitleRunner.firstMeaningfulLine(of: result.message))
             // Re-read on this queue too; the main thread must not wait on git.
-            let fresh = GitReader.status(of: repo.path)
-            let last = fresh.hasCommits ? GitReader.lastSaveMessage(in: repo.path) : nil
+            let (fresh, _, last) = Self.readRepoState(repo.path)
 
             DispatchQueue.main.async {
                 self.isBusy = false
                 self.busyLabel = ""
-                if result.succeeded { onSuccess?() }
                 self.status = fresh
                 self.lastSaveMessage = last
-                // onSuccess may have kicked off another write (connect → send) or
-                // routed somewhere itself; don't bury either under a result card.
-                if !self.isBusy, case .main = self.screen {
-                    self.screen = .result(ActionResult(
-                        succeeded: result.succeeded,
-                        title: result.succeeded ? success : failure,
-                        detail: detail
-                    ))
+                if result.succeeded {
+                    onSuccess?()
+                } else if !self.isBusy, case .main = self.screen {
+                    // onSuccess may have kicked off another write (connect → send)
+                    // or routed elsewhere; don't bury that under a failure card —
+                    // this only fires when nothing else already claimed the screen.
+                    self.screen = .result(ActionResult(succeeded: false, title: failure, detail: detail))
                 }
             }
         }
