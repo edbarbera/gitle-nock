@@ -24,15 +24,24 @@ Built for people meeting version control for the first time, usually because the
 
 ## What it is
 
-A thin UI shell over the [gitle](https://github.com/edbarbera/gitle) CLI. gitle already turns git into friendly verbs and carries the safety rails (secret detection, big-file warnings, the push-to-main nudge). This app puts those verbs in the notch.
+A notch-sized front end for the same job the [gitle](https://github.com/edbarbera/gitle) CLI does: turning git into plain-English verbs, with safety rails in front of the sharp edges.
 
-| In the menu     | gitle command          | git underneath   |
-| --------------- | ---------------------- | ---------------- |
-| Save your work  | `gitle save --all "…"` | `add` + `commit` |
-| Send it online  | `gitle send`           | `push`           |
-| Grab the latest | `gitle grab`           | `pull --rebase`  |
+| In the menu     | What runs    | git underneath                                  |
+| --------------- | ------------ | ----------------------------------------------- |
+| Save your work  | app          | `add` + `commit`                                |
+| Send it online  | app          | `push`                                          |
+| Grab the latest | `gitle grab` | `pull --rebase`                                 |
+| Sort it out     | app          | `checkout --ours/--theirs`, `rebase --continue` |
+| Set it up       | app          | `init`, `config`                                |
+| Go back / undo  | app          | `reset`, `clean`                                |
 
-**Writes go through `gitle`. Reads go through `git` directly** — branch, changed files, ahead/behind counts. `gitle status` prints prose written for humans, and parsing it for UI state would break every time the wording is polished.
+**Reads go through `git` directly** — branch, changed files, ahead/behind counts. `gitle status` prints prose written for humans, and parsing it for UI state would break every time the wording is polished.
+
+**Writes mostly go through `git` too, and the app owns the safety rails.** This is deliberate, and it wasn't the original plan. Almost every gitle command pauses on a terminal prompt — the file checklist, "save these anyway?", "send to main anyway?", "are you sure?". A prompt can't be answered from a headless subprocess: gitle correctly falls back to its safe default, which means the action doesn't happen. Run from the notch, that made _sending to `main` fail every time_ and _saving fail outright whenever a `.env` was present_, with no explanation either time.
+
+So the notch asks those questions itself, in the panel, and then runs the underlying git command. The checks are ported in [`SafetyRails.swift`](Sources/GitleNock/Git/SafetyRails.swift) and kept deliberately in step with gitle's `cmd/safety.go` and `cmd/gitignore.go` — same secret globs, same 10 MB threshold, same protected branches, same `.gitignore` templates.
+
+`gitle grab` is the exception and still runs as the CLI: it has no prompts, so it works headless exactly as it does in a terminal.
 
 ## Requirements
 
@@ -90,9 +99,24 @@ It runs as an accessory app: no Dock icon, no menu bar item. Its only presence i
 
 1. **First launch** opens Settings, because a notch with no projects can't do anything. Click **Add a project…** and pick the folder your work lives in.
 2. **Hover the notch.** The menu drops down. Move away and it closes.
-3. **Save your work** — describe what you changed in your own words. That's a commit.
-4. **Send it online** — uploads to GitHub. If the project has no online copy yet, gitle offers to create one.
+3. **Save your work** — tick which files to include (everything's ticked already), then describe what you changed in your own words. That's a commit.
+4. **Send it online** — uploads to GitHub. If the project has no online copy yet, you're asked for a link to one.
 5. **Grab the latest** — pulls down everyone else's work.
+
+If the folder isn't set up for git at all, the menu offers **Set it up** instead: name and email, a `.gitignore` matched to the project, and a first save.
+
+### The steps that stop and ask
+
+Anything that could lose work or leak something asks first, in the panel:
+
+| Situation                                | What you see                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| Files to include in a save               | A checklist, everything pre-ticked. Untick what should wait.                   |
+| A `.env`, `*.pem`, `id_rsa`… in the save | **Worth a second look** — leave them out, or save anyway.                      |
+| A file over 10 MB                        | Same screen, flagged separately.                                               |
+| Sending straight to `main`/`master`      | What that means, and that it's fine when working alone.                        |
+| Two people changed the same lines        | **Sort it out** — per file, keep either version or open it and fix it by hand. |
+| Throwing away unsaved changes            | Every affected file listed, with _Keep my changes_ as the easy option.         |
 
 The dot in the notch summarises the project at a glance:
 
@@ -103,7 +127,7 @@ The dot in the notch summarises the project at a glance:
 | 🔵 Blue  | Saved, but not in sync with online     |
 | ⚪️ Grey  | No project selected, or not a git repo |
 
-Footer icons, left to right: open in VS Code, switch project, refresh, settings, quit.
+Footer icons, left to right: open in VS Code, switch project, go back / undo, refresh, settings, quit.
 
 ### Settings
 
@@ -137,10 +161,14 @@ Sources/GitleNock/
 ├── Git/
 │   ├── Shell.swift                   subprocess runner
 │   ├── GitReader.swift               structured reads via plumbing git
-│   ├── GitleRunner.swift             mutations via the gitle CLI
+│   ├── GitWriter.swift               mutations via git, once the panel has asked
+│   ├── SafetyRails.swift             secret/big-file checks, .gitignore starters
+│   ├── GitleRunner.swift             `gitle grab`, the one prompt-free command
 │   └── RepoStore.swift               the project list, persisted
 ├── Models/RepoModels.swift
-└── UI/                               SwiftUI views
+└── UI/
+    ├── FlowViews.swift               the screens that stop and ask
+    └── …                             SwiftUI views
 ```
 
 Two details worth knowing before you change things:
@@ -164,11 +192,14 @@ It is off by default on purpose: the notification is system-wide, so an always-o
 
 This is a prototype. Known gaps, in rough order of how likely you are to hit them:
 
-- **Saving always includes every changed file.** `gitle save --all` skips the interactive file checklist, which can't be answered from a subprocess. Per-file selection belongs in the notch UI and isn't built yet — the "See what changed" screen is where it should go.
+- **The safety rails are duplicated, not shared.** `SafetyRails.swift` re-implements gitle's `cmd/safety.go` and `cmd/gitignore.go` in Swift. Change the globs or the size threshold in one repo and the other drifts. The proper fix is a non-interactive contract in gitle — a `--only <paths>` flag, a `--yes` to say the human already answered, and structured output so the notch renders warnings from data instead of re-deriving them.
+- **`gitle` is barely used now** — only `grab`. The app is no longer a shell over the CLI, whatever the name suggests.
+- **No AI-drafted save messages.** `gitle save --ai` exists; the notch doesn't offer it.
+- **Conflict resolution is whole-file only.** gitle's `--advanced` mode goes section by section within a file; here it's keep-one-side or open the file yourself.
 - **Launch at login likely fails on an ad-hoc signed build.** `SMAppService` generally refuses one. The error is surfaced in Settings rather than leaving a toggle that lies, but this needs a properly signed build to work.
 - **VS Code only.** Cursor, Zed, and friends aren't detected. Adding them is a one-line change to `editorBundleIDs` in `AppState.swift`; a picker in Settings would be better.
 - **GitHub sign-in isn't built.** The app uses whatever git account is already configured on the Mac.
-- **Long-running `gitle` commands that need input will time out** after 20 seconds rather than prompting. Anything interactive still has to be done in a terminal.
+- **Subprocesses time out after 20 seconds.** A slow push over a bad connection can hit that.
 - **The app polls.** No FSEvents watching, so changes show up within the refresh interval rather than instantly.
 - **Not signed or notarised**, so distribution beyond your own Mac needs a Developer ID.
 
