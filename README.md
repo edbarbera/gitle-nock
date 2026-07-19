@@ -83,7 +83,9 @@ pkill -f GitleNock
 
 ## Install
 
-There is no installer or signed release yet. Build it, then:
+**From a release.** Grab the DMG from [Releases](../../releases), open it, drag the app to Applications. Signed and notarised — no Gatekeeper prompt.
+
+**From source**, on your own Mac:
 
 ```sh
 ./scripts/bundle.sh
@@ -91,9 +93,19 @@ cp -R build/GitleNock.app /Applications/
 open /Applications/GitleNock.app
 ```
 
-The app is ad-hoc signed, so on first launch macOS may refuse to open it. Right-click the app in Finder and choose **Open**, then confirm.
+This build is only ad-hoc signed, so on first launch macOS may refuse to open it. Right-click the app in Finder and choose **Open**, then confirm.
 
 It runs as an accessory app: no Dock icon, no menu bar item. Its only presence is the notch. Quit it from the power icon in the menu footer, or from Settings.
+
+### Shipping a signed release
+
+`./scripts/release.sh` builds, signs with a Developer ID Application certificate, notarises with Apple, staples the ticket, and packages `build/GitleNock.dmg`. One-time setup (Apple Developer Program enrollment, a Developer ID certificate, and stored notarisation credentials) is documented at the top of the script. Once that's done:
+
+```sh
+./scripts/release.sh
+git tag vX.Y.Z && git push origin vX.Y.Z
+gh release create vX.Y.Z build/GitleNock.dmg --title "gitle nock vX.Y.Z" --notes "…"
+```
 
 ## Using it
 
@@ -135,6 +147,7 @@ Footer icons, left to right: open in VS Code, switch project, go back / undo, re
 - **Check for changes every** — how often the app re-reads git state (default 6 seconds).
 - **Show a pill on screens without a notch** — off means the app is invisible on external displays.
 - **Ask me before sending work online** — adds a confirmation step to Send.
+- **Light appearance for the notch menu** — swaps the menu's dark theme for a light one. The hardware notch itself always stays black, so it keeps blending into the bezel either way.
 - **Open gitle nock when I log in** — see Known limitations.
 - **Setup** — where `gitle` and `git` were found, and which git account your saves are attributed to.
 
@@ -196,12 +209,11 @@ This is a prototype. Known gaps, in rough order of how likely you are to hit the
 - **`gitle` is barely used now** — only `grab`. The app is no longer a shell over the CLI, whatever the name suggests.
 - **No AI-drafted save messages.** `gitle save --ai` exists; the notch doesn't offer it.
 - **Conflict resolution is whole-file only.** gitle's `--advanced` mode goes section by section within a file; here it's keep-one-side or open the file yourself.
-- **Launch at login likely fails on an ad-hoc signed build.** `SMAppService` generally refuses one. The error is surfaced in Settings rather than leaving a toggle that lies, but this needs a properly signed build to work.
+- **Launch at login likely fails on an ad-hoc signed build.** `SMAppService` generally refuses one. The error is surfaced in Settings rather than leaving a toggle that lies. A build from `./scripts/release.sh` is signed properly and doesn't have this problem.
 - **VS Code only.** Cursor, Zed, and friends aren't detected. Adding them is a one-line change to `editorBundleIDs` in `AppState.swift`; a picker in Settings would be better.
 - **GitHub sign-in isn't built.** The app uses whatever git account is already configured on the Mac.
 - **Subprocesses time out after 20 seconds.** A slow push over a bad connection can hit that.
 - **The app polls.** No FSEvents watching, so changes show up within the refresh interval rather than instantly.
-- **Not signed or notarised**, so distribution beyond your own Mac needs a Developer ID.
 
 ## Licence
 

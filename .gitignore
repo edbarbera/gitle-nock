@@ -4,6 +4,7 @@ DerivedData/
 xcuserdata/
 Packages/
 build/
+.swiftpm/
 
 # OS files
 .DS_Store
@@ -16,3 +17,4 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+secrets.md
