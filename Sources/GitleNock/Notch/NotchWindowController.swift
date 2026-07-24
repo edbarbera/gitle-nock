@@ -43,7 +43,7 @@ final class NotchWindowController {
         panel.level = Self.floatingLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
-        panel.contentView = NSHostingView(
+        panel.contentView = NotchHostingView(
             rootView: NotchRootView()
                 .environmentObject(state)
                 .environmentObject(viewModel)
