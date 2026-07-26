@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- milky frosted body -->
+    <linearGradient id="glassBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f7fb" stop-opacity="0.96"/>
+      <stop offset="0.5" stop-color="#dde5ee" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#c3cedc" stop-opacity="0.92"/>
+    </linearGradient>
+    <!-- top rim light -->
+    <linearGradient id="rimTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.45"/>
+    </linearGradient>
+    <filter id="blurBig" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="34"/>
+    </filter>
+    <filter id="blurMid" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="blurSm" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <clipPath id="pane">
+      <rect x="96" y="96" width="832" height="832" rx="186"/>
+    </clipPath>
+  </defs>
+
+  <!-- glass pane fills the whole squircle -->
+  <rect x="96" y="96" width="832" height="832" rx="186" fill="url(#glassBody)"/>
+
+  <g clip-path="url(#pane)">
+    <!-- cool shadow pooling at the bottom of the slab -->
+    <ellipse cx="512" cy="1000" rx="560" ry="260" fill="#8fa3bc" opacity="0.5" filter="url(#blurBig)"/>
+    <!-- cold light entering top-left -->
+    <ellipse cx="300" cy="120" rx="420" ry="240" fill="#ffffff" opacity="0.55" filter="url(#blurBig)"/>
+
+    <!-- refracted trace ghosts: deep inside the glass, blurred and offset -->
+    <g stroke-linecap="round" fill="none" opacity="0.55" filter="url(#blurMid)" transform="translate(26 60)">
+      <path d="M 268 306 L 396 306 L 588 498 L 588 600 L 700 712" stroke="#5ca1ff" stroke-width="30"/>
+      <path d="M 500 234 L 646 380 L 646 560 L 700 614" stroke="#4ddb8f" stroke-width="30"/>
+      <path d="M 330 566 L 452 566 L 618 732 L 690 732" stroke="#5ca1ff" stroke-width="30"/>
+      <path d="M 762 306 L 762 520 L 706 576" stroke="#4ddb8f" stroke-width="30"/>
+    </g>
+    <!-- colour bleed at the bottom edge, like light leaking through the slab -->
+    <ellipse cx="380" cy="900" rx="240" ry="90" fill="#4ddb8f" opacity="0.30" filter="url(#blurBig)"/>
+    <ellipse cx="680" cy="920" rx="260" ry="90" fill="#5ca1ff" opacity="0.32" filter="url(#blurBig)"/>
+  </g>
+
+  <!-- crisp traces etched into the surface: four branches merging into one node -->
+  <g stroke-linecap="round" fill="none">
+    <!-- soft glow pass -->
+    <g opacity="0.7" filter="url(#blurSm)">
+      <path d="M 268 306 L 396 306 L 588 498 L 588 600 L 700 712" stroke="#5ca1ff" stroke-width="26"/>
+      <path d="M 500 234 L 646 380 L 646 560 L 700 614 L 700 712" stroke="#4ddb8f" stroke-width="26"/>
+      <path d="M 330 566 L 452 566 L 618 732 L 700 732" stroke="#5ca1ff" stroke-width="26"/>
+      <path d="M 762 306 L 762 520 L 706 576" stroke="#4ddb8f" stroke-width="26"/>
+    </g>
+    <!-- sharp pass -->
+    <g>
+      <path d="M 268 306 L 396 306 L 588 498 L 588 600 L 700 712" stroke="#4b8fef" stroke-width="14"/>
+      <path d="M 500 234 L 646 380 L 646 560 L 700 614 L 700 712" stroke="#3ecf85" stroke-width="14"/>
+      <path d="M 330 566 L 452 566 L 618 732 L 700 732" stroke="#4b8fef" stroke-width="14"/>
+      <path d="M 762 306 L 762 520 L 706 576" stroke="#3ecf85" stroke-width="14"/>
+    </g>
+    <!-- hot core pass -->
+    <g opacity="0.85">
+      <path d="M 268 306 L 396 306 L 588 498 L 588 600 L 700 712" stroke="#eaf3ff" stroke-width="5"/>
+      <path d="M 500 234 L 646 380 L 646 560 L 700 614 L 700 712" stroke="#eafff3" stroke-width="5"/>
+      <path d="M 330 566 L 452 566 L 618 732 L 700 732" stroke="#eaf3ff" stroke-width="5"/>
+      <path d="M 762 306 L 762 520 L 706 576" stroke="#eafff3" stroke-width="5"/>
+    </g>
+  </g>
+
+  <!-- branch-start dots -->
+  <g>
+    <circle cx="268" cy="306" r="30" fill="#5ca1ff" opacity="0.5" filter="url(#blurSm)"/>
+    <circle cx="268" cy="306" r="20" fill="#4b8fef"/>
+    <circle cx="268" cy="306" r="9" fill="#f2f8ff"/>
+
+    <circle cx="500" cy="234" r="30" fill="#4ddb8f" opacity="0.5" filter="url(#blurSm)"/>
+    <circle cx="500" cy="234" r="20" fill="#3ecf85"/>
+    <circle cx="500" cy="234" r="9" fill="#f0fff7"/>
+
+    <circle cx="330" cy="566" r="30" fill="#5ca1ff" opacity="0.5" filter="url(#blurSm)"/>
+    <circle cx="330" cy="566" r="20" fill="#4b8fef"/>
+    <circle cx="330" cy="566" r="9" fill="#f2f8ff"/>
+
+    <circle cx="762" cy="306" r="30" fill="#4ddb8f" opacity="0.5" filter="url(#blurSm)"/>
+    <circle cx="762" cy="306" r="20" fill="#3ecf85"/>
+    <circle cx="762" cy="306" r="9" fill="#f0fff7"/>
+  </g>
+
+  <!-- merge node: brightest point on the slab -->
+  <circle cx="700" cy="726" r="66" fill="#5ca1ff" opacity="0.55" filter="url(#blurMid)"/>
+  <circle cx="700" cy="726" r="34" fill="#4b8fef"/>
+  <circle cx="700" cy="726" r="34" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="6"/>
+  <circle cx="700" cy="726" r="15" fill="#ffffff"/>
+
+  <!-- small dots at trace joints, like solder points -->
+  <g>
+    <circle cx="396" cy="306" r="11" fill="#4b8fef"/>
+    <circle cx="396" cy="306" r="5" fill="#f2f8ff"/>
+    <circle cx="646" cy="380" r="11" fill="#3ecf85"/>
+    <circle cx="646" cy="380" r="5" fill="#f0fff7"/>
+    <circle cx="452" cy="566" r="11" fill="#4b8fef"/>
+    <circle cx="452" cy="566" r="5" fill="#f2f8ff"/>
+    <circle cx="588" cy="498" r="11" fill="#4b8fef"/>
+    <circle cx="588" cy="498" r="5" fill="#f2f8ff"/>
+  </g>
+
+  <!-- surface finish: rim + sheen, drawn last so it sits over everything -->
+  <g clip-path="url(#pane)">
+    <path d="M 96 96 L 928 96 L 928 400 C 700 520 320 500 96 380 Z" fill="#ffffff" opacity="0.07" filter="url(#blurMid)"/>
+  </g>
+  <rect x="96" y="96" width="832" height="832" rx="186" fill="none" stroke="url(#rimTop)" stroke-width="8"/>
+  <rect x="108" y="108" width="808" height="808" rx="174" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3"/>
+</svg>

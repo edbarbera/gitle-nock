@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="420" viewBox="0 0 660 420">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2740"/>
+      <stop offset="0.5" stop-color="#101828"/>
+      <stop offset="1" stop-color="#0a0e18"/>
+    </linearGradient>
+    <linearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5ca1ff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#5ca1ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="arrowg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5ca1ff"/>
+      <stop offset="1" stop-color="#4ddb8f"/>
+    </linearGradient>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <!-- base -->
+  <rect width="660" height="420" fill="url(#bg)"/>
+  <rect width="660" height="140" fill="url(#wash)"/>
+
+  <!-- the notch, hanging from the top of the window -->
+  <path d="M 250 0 L 410 0 L 410 44 Q 410 62 392 62 L 268 62 Q 250 62 250 44 Z"
+        fill="#070b13" opacity="0.95"/>
+  <path d="M 250 0 L 410 0 L 410 44 Q 410 62 392 62 L 268 62 Q 250 62 250 44 Z"
+        fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1.5"/>
+  <!-- camera dot -->
+  <circle cx="330" cy="30" r="8" fill="#02040a"/>
+  <circle cx="330" cy="30" r="8" fill="none" stroke="#5ca1ff" stroke-opacity="0.55" stroke-width="1.5"/>
+  <circle cx="327" cy="27" r="2.5" fill="#5ca1ff" opacity="0.7"/>
+
+  <!-- headline -->
+  <text x="330" y="106" text-anchor="middle"
+        font-family="SF Pro Rounded, ui-rounded, -apple-system, Helvetica Neue"
+        font-size="34" font-weight="700" fill="#ffffff">gitle nock</text>
+  <text x="330" y="132" text-anchor="middle"
+        font-family="SF Pro Rounded, ui-rounded, -apple-system, Helvetica Neue"
+        font-size="15" font-weight="500" fill="#ffffff" opacity="0.55">your projects, tucked under the notch</text>
+
+  <!-- glow pads under the two icon spots (Finder draws the icons on top) -->
+  <ellipse cx="165" cy="240" rx="80" ry="80" fill="#5ca1ff" opacity="0.10" filter="url(#soft)"/>
+  <ellipse cx="495" cy="240" rx="80" ry="80" fill="#4ddb8f" opacity="0.10" filter="url(#soft)"/>
+
+  <!-- glass rings framing the drop spots -->
+  <circle cx="165" cy="240" r="74" fill="#ffffff" opacity="0.045"/>
+  <circle cx="165" cy="240" r="74" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.5"/>
+  <circle cx="495" cy="240" r="74" fill="#ffffff" opacity="0.045"/>
+  <circle cx="495" cy="240" r="74" fill="none" stroke="#4ddb8f" stroke-opacity="0.30" stroke-width="1.5" stroke-dasharray="7 7"/>
+
+  <!-- squiggly arrow, left icon to Applications -->
+  <path d="M 258 240 C 290 200 320 280 352 240 C 368 220 384 234 396 240"
+        fill="none" stroke="url(#arrowg)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 388 222 L 414 240 L 388 258" fill="none" stroke="#4ddb8f" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- labels above the spots (Finder draws its own names below the icons) -->
+  <text x="165" y="152" text-anchor="middle"
+        font-family="SF Pro Rounded, ui-rounded, -apple-system, Helvetica Neue"
+        font-size="14" font-weight="600" fill="#ffffff" opacity="0.7">this little guy</text>
+  <text x="495" y="152" text-anchor="middle"
+        font-family="SF Pro Rounded, ui-rounded, -apple-system, Helvetica Neue"
+        font-size="14" font-weight="600" fill="#ffffff" opacity="0.7">goes in here</text>
+
+  <!-- footer: the three verbs, like the cards in the app -->
+  <g font-family="SF Pro Rounded, ui-rounded, -apple-system, Helvetica Neue" font-size="13" font-weight="600">
+    <rect x="176" y="374" width="92" height="26" rx="13" fill="#ffbd4a" opacity="0.13"/>
+    <text x="222" y="391" text-anchor="middle" fill="#ffbd4a">save it</text>
+    <rect x="284" y="374" width="92" height="26" rx="13" fill="#5ca1ff" opacity="0.13"/>
+    <text x="330" y="391" text-anchor="middle" fill="#5ca1ff">send it</text>
+    <rect x="392" y="374" width="92" height="26" rx="13" fill="#4ddb8f" opacity="0.13"/>
+    <text x="438" y="391" text-anchor="middle" fill="#4ddb8f">grab it</text>
+  </g>
+</svg>

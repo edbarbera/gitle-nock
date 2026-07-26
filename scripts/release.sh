@@ -57,7 +57,73 @@ xcrun stapler staple "$APP"
 
 echo "Building the DMG…"
 rm -f "$DMG"
-hdiutil create -volname "gitle nock" -srcfolder "$APP" -ov -format UDZO "$DMG"
+
+# The DMG is a styled drag-to-install window, not a bare file listing: custom
+# background art, the app on the left, an /Applications symlink on the right.
+# hdiutil can't set any of that, so the image is first created read-write,
+# mounted, laid out through Finder scripting (which writes the .DS_Store),
+# then converted to the compressed read-only UDZO that actually ships.
+#
+# The osascript block needs Automation permission for Finder the first time
+# it runs from a terminal — approve the one-time prompt or the layout step
+# fails with "not authorized".
+STAGE="$ROOT/build/dmg-stage"
+DMG_RW="$ROOT/build/GitleNock-rw.dmg"
+VOLNAME="gitle nock"
+
+rm -rf "$STAGE" "$DMG_RW"
+mkdir -p "$STAGE/.background"
+cp -R "$APP" "$STAGE/GitleNock.app"
+ln -s /Applications "$STAGE/Applications"
+cp "$ROOT/assets/dmg-background.tiff" "$STAGE/.background/background.tiff"
+
+# The volume itself gets the app icon, so the mounted disk on the desktop
+# matches what's being installed.
+if [ -f "$ROOT/assets/AppIcon.icns" ]; then
+    cp "$ROOT/assets/AppIcon.icns" "$STAGE/.VolumeIcon.icns"
+fi
+
+hdiutil create -volname "$VOLNAME" -srcfolder "$STAGE" -ov -format UDRW "$DMG_RW"
+
+MOUNT_DIR="/Volumes/$VOLNAME"
+hdiutil attach "$DMG_RW" -noautoopen
+# SetFile ships with the Xcode CLT; without the custom-icon bit the
+# .VolumeIcon.icns file is ignored, but that's cosmetic — don't fail over it.
+if [ -f "$MOUNT_DIR/.VolumeIcon.icns" ]; then
+    SetFile -a C "$MOUNT_DIR" 2>/dev/null || true
+fi
+
+osascript <<OSA
+tell application "Finder"
+    tell disk "$VOLNAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        -- 660x420 content, matching assets/dmg-background.svg's canvas
+        set the bounds of container window to {200, 120, 860, 568}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 128
+        set text size of viewOptions to 12
+        set background picture of viewOptions to file ".background:background.tiff"
+        -- Centers of the two glass rings drawn in the background art
+        set position of item "GitleNock.app" of container window to {165, 240}
+        set position of item "Applications" of container window to {495, 240}
+        close
+        open
+        update without registering applications
+        delay 1
+        close
+    end tell
+end tell
+OSA
+
+sync
+hdiutil detach "$MOUNT_DIR"
+hdiutil convert "$DMG_RW" -format UDZO -o "$DMG"
+rm -f "$DMG_RW"
+rm -rf "$STAGE"
 
 # hdiutil never signs the disk image itself, and notarization/stapling a
 # ticket onto it doesn't produce one either — spctl's "install" check on a
