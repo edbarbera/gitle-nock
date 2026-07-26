@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUILD_CACHE_KEY: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
+  BUILD_CACHE_KEY: spm-macos-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
 
 jobs:
   build-tests:
@@ -30,7 +30,7 @@ jobs:
           path: .build
           key: ${{ env.BUILD_CACHE_KEY }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-macos-
 
       - name: Build test binaries
         run: swift build --build-tests -v
@@ -85,7 +85,7 @@ jobs:
           path: .build
           key: ${{ env.BUILD_CACHE_KEY }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-macos-
 
       - name: Bundle and launch real .app
         run: scripts/smoke-launch.sh release
