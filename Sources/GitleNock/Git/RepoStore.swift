@@ -4,7 +4,11 @@ import Foundation
 final class RepoStore {
     private let reposKey = "gitlenock.repos"
     private let activeKey = "gitlenock.activeRepo"
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
 
     func load() -> [Repo] {
         guard let data = defaults.data(forKey: reposKey),

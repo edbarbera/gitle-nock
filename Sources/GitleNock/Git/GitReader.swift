@@ -150,6 +150,45 @@ enum GitReader {
         return subject.isEmpty ? nil : subject
     }
 
+    /// The commit HEAD points at. Read either side of a grab so the panel can
+    /// say what actually came down, rather than just that something did.
+    static func headSHA(in path: String) -> String? {
+        let out = git(["rev-parse", "HEAD"], path)
+        guard out.succeeded else { return nil }
+        let sha = out.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sha.isEmpty ? nil : sha
+    }
+
+    /// How many commits arrived between two points, for "3 updates" wording.
+    static func commitCount(from old: String, to new: String, in path: String) -> Int {
+        let out = git(["rev-list", "--count", "\(old)..\(new)"], path)
+        guard out.succeeded else { return 0 }
+        return Int(out.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    /// Files touched between two commits, in the same shape as working-copy
+    /// changes so the panel can render them with the row it already has.
+    static func changedFiles(from old: String, to new: String, in path: String) -> [FileChange] {
+        let out = git(["diff", "--name-status", "-M", "\(old)..\(new)"], path)
+        guard out.succeeded else { return [] }
+
+        return out.stdout.split(separator: "\n").compactMap { line in
+            // "M\tpath", "A\tpath", "D\tpath", or "R100\told\tnew" for a rename.
+            let fields = line.split(separator: "\t").map(String.init)
+            guard let code = fields.first?.first, fields.count >= 2 else { return nil }
+
+            let kind: FileChange.Kind
+            switch code {
+            case "A": kind = .new
+            case "D": kind = .deleted
+            case "R", "C": kind = .renamed
+            default: kind = .changed
+            }
+            // A rename reports both names; the new one is what the user recognises.
+            return FileChange(kind: kind, path: fields.last!)
+        }
+    }
+
     /// True when the folder has files in it, so setup can offer a first save.
     static func hasAnythingToSave(in path: String) -> Bool {
         !git(["status", "--porcelain=v1", "-uall"], path)

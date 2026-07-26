@@ -6,21 +6,25 @@ Built for people meeting version control for the first time, usually because the
 
 ```
 ┌──────────────────────── the notch ────────────────────────┐
-│  demo-project                                          ●  │
+│  demo-project ⌄                                 main   ●  │
 ├───────────────────────────────────────────────────────────┤
-│  main                                                     │
 │  3 unsaved changes                                        │
+│  Save them whenever you like — nothing goes online yet    │
 │                                                           │
-│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐    │
-│  │ Save your     │ │ Send it       │ │ Grab the      │    │
-│  │ work          │ │ online        │ │ latest        │    │
-│  └───────────────┘ └───────────────┘ └───────────────┘    │
+│  ┌────────────┐③ ┌────────────┐  ┌────────────┐           │
+│  │ ⤓          │  │ ↑          │  │ ↓          │           │
+│  │ Save your  │  │ Send it    │  │ Grab the   │           │
+│  │ work       │  │ online     │  │ latest     │           │
+│  │ 3 files    │  │ 1 ready    │  │ up to date │           │
+│  └────────────┘  └────────────┘  └────────────┘           │
 │                                                           │
-│  See what changed   README.md, login.js, app.css          │
+│  ▸ See what changed   README.md · login.js · app.css   ›  │
 │                                                           │
-│  </>  ▦  ↻  ⚙                                        ⏻    │
+│  ( </> ▦ ↺ ⟳ ⚙ )                                  ( ⏻ )   │
 └───────────────────────────────────────────────────────────┘
 ```
+
+The panel is Liquid Glass over a behind-window blur: the tiles and the footer trays are real glass surfaces that refract your desktop, and the opacity slider in Settings controls how much of it comes through.
 
 ## What it is
 
@@ -45,7 +49,7 @@ So the notch asks those questions itself, in the panel, and then runs the underl
 
 ## Requirements
 
-- macOS 13 or later (developed and tested on macOS 26)
+- macOS 26 (Tahoe) or later. The panel is built on Liquid Glass — `glassEffect` and `GlassEffectContainer` — which has no pre-26 equivalent.
 - Xcode command line tools, for `swift build`
 - [`gitle`](https://github.com/edbarbera/gitle) on your PATH:
   ```sh
@@ -79,6 +83,41 @@ To stop it:
 
 ```sh
 pkill -f GitleNock
+```
+
+## Running the tests
+
+```sh
+swift test
+```
+
+123 tests, real `git`/`gitle` binaries against real repos in temp directories — nothing mocked. Runs in about a minute.
+
+| Folder                     | What it covers                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `Tests/GitleNockTests/Unit/`        | Pure logic: `Shell`, `SafetyRails`, `RepoModels`, `RepoStore`, `GitleRunner` parsing. |
+| `Tests/GitleNockTests/Integration/` | `GitReader`/`GitWriter` against real repos: status parsing, save/send/undo/discard, real merge/rebase conflicts. |
+| `Tests/GitleNockTests/Functional/`  | Multi-step flows as `AppState` sequences them — flagged-secret save, first-run setup order, mixed conflict resolution, send's branching. |
+| `Tests/GitleNockTests/EndToEnd/`    | Two cloned "developers" + a bare remote: save → send → rejected push → conflict → resolve → send again. One path uses plain `git pull` (deterministic); the other drives real `gitle grab`. |
+| `Tests/GitleNockTests/Smoke/`       | A handful of fast sanity checks — meant to fail loud before the slower suites bother. |
+| `Tests/GitleNockTests/Performance/` | Resource-usage regression guards: refresh cost on ordinary and 500-file repos, timed-out subprocesses leave no survivors, concurrent multi-repo polling. |
+
+Run one category with `--filter`:
+
+```sh
+swift test --filter SmokeTests
+swift test --filter EndToEnd        # matches every *E2E*Tests class
+```
+
+Two things worth knowing:
+
+- **`gitle grab` tests skip themselves** if `gitle` isn't on your PATH, rather than failing — see `GitleGrabE2ETests`.
+- **Nothing touches your real setup.** `GitWriter.setIdentity` writes git's `--global` config; tests redirect it to a throwaway file via `GIT_CONFIG_GLOBAL` so your actual `~/.gitconfig` is never written. `RepoStore` takes an injectable `UserDefaults`, so `RepoStoreTests` never touches the app's real saved project list.
+
+To also confirm the built `.app` launches without crashing (separate from `swift test`, since it opens a real window):
+
+```sh
+./scripts/smoke-launch.sh
 ```
 
 ## Install
@@ -137,19 +176,31 @@ The dot in the notch summarises the project at a glance:
 | 🟢 Green | Everything saved and sent              |
 | 🟠 Amber | You have unsaved changes               |
 | 🔵 Blue  | Saved, but not in sync with online     |
+| 🔴 Red   | Files need conflict resolution         |
 | ⚪️ Grey  | No project selected, or not a git repo |
+
+Amber and red pulse; the other states are still.
+
+Actions don't hold the menu open. Click one and move away: the notch grows a short way either side of the cutout — an icon on the left, progress on the right — reports the outcome, then shrinks back. Hover again within a minute to read the detail: which files a grab brought down, or exactly what git said when something failed.
 
 Footer icons, left to right: open in VS Code, switch project, go back / undo, refresh, settings, quit.
 
 ### Settings
 
-- **Your projects** — add, remove, and switch. Folders that have gone missing are flagged rather than silently dropped.
-- **Check for changes every** — how often the app re-reads git state (default 6 seconds).
-- **Show a pill on screens without a notch** — off means the app is invisible on external displays.
-- **Ask me before sending work online** — adds a confirmation step to Send.
-- **Light appearance for the notch menu** — swaps the menu's dark theme for a light one. The hardware notch itself always stays black, so it keeps blending into the bezel either way.
-- **Open gitle nock when I log in** — see Known limitations.
-- **Setup** — where `gitle` and `git` were found, and which git account your saves are attributed to.
+A sidebar window with five panes.
+
+**Appearance** — a live miniature of the panel sits at the top and updates as you change anything below it.
+
+- **Theme** — Automatic (follows macOS), Light, or Dark. The hardware notch itself always stays black, so it keeps blending into the bezel either way.
+- **Accent colour** — eight choices, including _Match macOS_, which tracks your system accent. It leads every primary action, the focus ring, and the wash across the top of the panel.
+- **Opacity** — 0–100%, driving both the frosted layer and the tint over it, with no multiplier in between: the number on the slider is what you get. At 0% the panel really is clear — glass buttons, rim and text over your wallpaper. Text drawn straight on the panel picks up a legibility halo as it goes below ~55%, the way desktop icon labels do, so the low end stays usable.
+- **Tone down animation** — keeps the transitions but drops the springy overshoot and the pulsing status dot.
+
+**Projects** — add, remove, and switch. Folders that have gone missing are flagged rather than silently dropped.
+
+**Behaviour** — how often the app re-reads git state (default 6 seconds), whether to show a pill on screens without a notch, whether to confirm before sending, and launch at login.
+
+**Under the hood** — where `gitle` and `git` were found, and which git account your saves are attributed to.
 
 ## Permissions
 
@@ -180,14 +231,20 @@ Sources/GitleNock/
 │   └── RepoStore.swift               the project list, persisted
 ├── Models/RepoModels.swift
 └── UI/
+    ├── Theme.swift                   design tokens, glass modifiers, primitives
+    ├── NotchRootView.swift           the shell: material, rim, collapsed states
+    ├── MenuContentView.swift         screen routing, main menu, footer
+    ├── SaveView.swift                save, file list, project list
     ├── FlowViews.swift               the screens that stop and ask
-    └── …                             SwiftUI views
+    └── SettingsView.swift            the settings window
 ```
 
 Two details worth knowing before you change things:
 
 - **`Shell.run` drains stdout and stderr concurrently and has a timeout.** Reading one to EOF before the other deadlocks as soon as a child fills the pipe it isn't being read from. All subprocess work runs on a dedicated `DispatchQueue`, never Swift's cooperative pool, because blocking that pool starves the app.
 - **`NotchRootView` states both frame dimensions outright.** Letting either side size to content makes the background and clip shape smaller than the laid-out content, which silently crops anything a `Spacer` pushes to the bottom.
+- **`Theme` is static state, not an `EnvironmentValue`.** Every view reads tokens off it directly, so SwiftUI can't observe a change. `NotchRootView` writes the current settings into it before any token is read and keys the tree on `settings.appearanceToken` to force the repaint.
+- **Liquid Glass picks light or dark off the _window's_ appearance.** Nothing SwiftUI draws inside affects it. `NotchWindowController.applyAppearance()` pins `panel.appearance` to the resolved theme; without it every glass surface renders pale whatever the palette says.
 
 ## Testing without a cursor
 
@@ -197,7 +254,18 @@ Set `GITLENOCK_DEBUG=1` to enable a distributed-notification hook that drives th
 open build/GitleNock.app --env GITLENOCK_DEBUG=1
 ```
 
-Then post `com.edbarbera.gitlenock.toggle` with an object of `addrepo`, `settings`, `editor`, or none at all to toggle the menu.
+Then post `com.edbarbera.gitlenock.toggle` with one of these as its object:
+
+| Object                  | What it does                                                       |
+| ----------------------- | ------------------------------------------------------------------ |
+| _(none)_                | Toggles the menu open and shut, pinned so it stays put.             |
+| `addrepo`               | Opens the folder chooser.                                           |
+| `settings`              | Opens the settings window.                                          |
+| `editor`                | Opens the active project in VS Code or Finder.                      |
+| `grab`                  | Runs a real grab with the menu shut — the way to see the notch report back. |
+| `screen:<name>`         | Jumps straight to one screen, seeding whatever it needs to draw.    |
+
+`<name>` is any of `pickFiles`, `save`, `risks`, `files`, `repos`, `confirmSend`, `confirmProtectedSend`, `connect`, `setup`, `undo`, `confirmDiscard`, `conflicts`, `result`.
 
 It is off by default on purpose: the notification is system-wide, so an always-on hook would let any process on the Mac pop this app's folder chooser.
 
