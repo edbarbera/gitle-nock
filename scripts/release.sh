@@ -86,12 +86,10 @@ fi
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGE" -ov -format UDRW "$DMG_RW"
 
 MOUNT_DIR="/Volumes/$VOLNAME"
+HAS_VOLUME_ICON=0
+[ -f "$STAGE/.VolumeIcon.icns" ] && HAS_VOLUME_ICON=1
+
 hdiutil attach "$DMG_RW" -noautoopen
-# SetFile ships with the Xcode CLT; without the custom-icon bit the
-# .VolumeIcon.icns file is ignored, but that's cosmetic — don't fail over it.
-if [ -f "$MOUNT_DIR/.VolumeIcon.icns" ]; then
-    SetFile -a C "$MOUNT_DIR" 2>/dev/null || true
-fi
 
 osascript <<OSA
 tell application "Finder"
@@ -118,6 +116,15 @@ tell application "Finder"
     end tell
 end tell
 OSA
+
+# SetFile ships with the Xcode CLT. It has to run *after* the Finder scripting
+# above, not before: Finder's own open/close/update cycle clears the
+# custom-icon bit (and consumes .VolumeIcon.icns) if the bit was set earlier,
+# so setting it here is what makes it actually stick across unmount/remount.
+# Cosmetic — don't fail the release over it.
+if [ "$HAS_VOLUME_ICON" = "1" ]; then
+    SetFile -a C "$MOUNT_DIR" 2>/dev/null || true
+fi
 
 sync
 hdiutil detach "$MOUNT_DIR"
