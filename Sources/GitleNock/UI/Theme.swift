@@ -33,11 +33,36 @@ enum Theme {
     static var stroke: Color { isDark ? .white.opacity(0.10) : .black.opacity(0.09) }
     static var strokeStrong: Color { isDark ? .white.opacity(0.20) : .black.opacity(0.16) }
 
-    /// The scrim behind the panel's blur. Opacity 1 makes it near-solid; the
-    /// slider walks it back towards pure blur.
+    /// The scrim over the panel's blur. Mapped straight off the slider with no
+    /// multiplier: 1 is a solid panel, 0 leaves nothing but the glass surfaces
+    /// and the rim. Anything in between is a real reading of the number shown
+    /// in Settings, which is the point of showing it.
     static var panelScrim: Color {
         let base = isDark ? Color(white: 0.07) : Color(white: 0.97)
-        return base.opacity(opacity * (isDark ? 0.86 : 0.80))
+        return base.opacity(opacity)
+    }
+
+    /// How much of the behind-window blur to draw. This tracks the slider too —
+    /// leaving it at full strength was what kept the panel frosted no matter how
+    /// far the scrim came down, and made the low end of the range pointless.
+    static var materialStrength: Double { opacity }
+
+    /// The accent wash across the top of the panel. Fades out with everything
+    /// else, or a panel set to clear keeps a coloured stain on it.
+    static var accentWash: Color {
+        accent.opacity((isDark ? 0.13 : 0.09) * opacity)
+    }
+
+    /// Halo for text sitting straight on the panel with no surface under it.
+    ///
+    /// Once the panel is mostly clear there is no known colour behind that text —
+    /// it's whatever wallpaper happens to be there — so a light theme over a dark
+    /// desktop goes unreadable. Fading in a halo the opposite side of the text is
+    /// the same trick macOS uses for desktop icon labels. Invisible above ~55%,
+    /// where the scrim is doing the job on its own.
+    static var legibilityHalo: Color {
+        let needed = max(0, 0.55 - opacity) / 0.55
+        return (isDark ? Color.black : Color.white).opacity(needed * 0.9)
     }
 
     /// Rim light along the top edge of a glass surface — the single cue that
@@ -141,6 +166,10 @@ struct NotchShape: Shape {
 /// to sample the desktop rather than tint a colour — that sampling is what the
 /// opacity slider is actually adjusting.
 struct PanelMaterial: NSViewRepresentable {
+    /// 0…1. Set through `alphaValue` rather than SwiftUI's `.opacity`, which an
+    /// `NSVisualEffectView` does not reliably honour.
+    var strength: Double = 1
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow
@@ -152,6 +181,7 @@ struct PanelMaterial: NSViewRepresentable {
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
         view.appearance = NSAppearance(named: Theme.isDark ? .vibrantDark : .vibrantLight)
+        view.alphaValue = strength
     }
 }
 
@@ -180,6 +210,15 @@ extension View {
                     .opacity(0.7)
                     .allowsHitTesting(false)
             )
+    }
+
+    /// For text and icons drawn straight onto the panel, with no card of their
+    /// own to sit on. Does nothing until the panel is turned down far enough to
+    /// need it. Two passes because one soft shadow isn't enough contrast against
+    /// a bright wallpaper.
+    func legibleOnPanel() -> some View {
+        shadow(color: Theme.legibilityHalo, radius: 3)
+            .shadow(color: Theme.legibilityHalo, radius: 7)
     }
 
     /// A flat wash for things that group content but aren't pressable. Cheaper
@@ -394,6 +433,7 @@ struct BackHeader: View {
             }
             Spacer(minLength: 0)
         }
+        .legibleOnPanel()
     }
 }
 
@@ -421,6 +461,7 @@ struct AlertHeader: View {
             }
             Spacer(minLength: 0)
         }
+        .legibleOnPanel()
     }
 }
 

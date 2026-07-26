@@ -194,7 +194,7 @@ private struct AppearancePane: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 34, alignment: .trailing)
                 }
-                FootNote("Lower lets more of your desktop through the glass. Anything under about 60% gets hard to read over a busy wallpaper.")
+                FootNote("Drives both the frosted layer and the tint over it. At 0% the panel is clear — just the glass buttons, the rim and the text — which looks its best over a calm wallpaper and gets hard to read over a busy one. The preview above is accurate at every setting.")
             }
 
             SettingsGroup("Motion") {
@@ -230,6 +230,7 @@ private struct PanelPreview: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 22)
+            .legibleOnPanel()
 
             Rectangle().fill(Theme.stroke).frame(height: 1)
 
@@ -242,6 +243,7 @@ private struct PanelPreview: View {
                         .font(Theme.body(8.5))
                         .foregroundStyle(Theme.textDim)
                 }
+                .legibleOnPanel()
 
                 HStack(spacing: 7) {
                     PreviewTile(icon: "tray.and.arrow.down.fill", tint: Theme.warn, title: "Save")
@@ -256,21 +258,20 @@ private struct PanelPreview: View {
         .frame(width: 340, height: 132)
         .background(
             ZStack {
-                // Stand-in wallpaper: without something busy behind it, a change
-                // to the opacity slider is invisible in the preview.
-                LinearGradient(
-                    colors: [Color(red: 0.35, green: 0.30, blue: 0.62),
-                             Color(red: 0.86, green: 0.42, blue: 0.45),
-                             Color(red: 0.95, green: 0.72, blue: 0.35)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .scaleEffect(1.6)
-                .blur(radius: 22)
+                // Stand-in wallpaper. The real panel's blur samples the desktop
+                // behind the *window*, which here would be this settings window
+                // rather than anything the preview draws — so the preview can't
+                // use `PanelMaterial` and has to reproduce it: the same artwork,
+                // blurred, at the same strength the slider gives the real one.
+                PreviewWallpaper()
+
+                PreviewWallpaper()
+                    .blur(radius: 18)
+                    .opacity(Theme.materialStrength)
 
                 NotchShape(radius: 18).fill(Theme.panelScrim)
                 NotchShape(radius: 18).fill(
-                    LinearGradient(colors: [Theme.accent.opacity(Theme.isDark ? 0.13 : 0.09), .clear],
+                    LinearGradient(colors: [Theme.accentWash, .clear],
                                    startPoint: .top, endPoint: .center)
                 )
             }
@@ -280,6 +281,45 @@ private struct PanelPreview: View {
         .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
         .frame(maxWidth: .infinity)
         .animation(.easeOut(duration: 0.18), value: settings.appearanceToken)
+    }
+}
+
+/// Stand-in desktop for the preview. Deliberately has hard edges and bright
+/// blobs in it — a smooth gradient looks identical blurred and unblurred, which
+/// would hide exactly the thing the opacity slider is changing.
+private struct PreviewWallpaper: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.16, green: 0.14, blue: 0.38),
+                         Color(red: 0.55, green: 0.22, blue: 0.45),
+                         Color(red: 0.95, green: 0.55, blue: 0.30)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(Color(red: 1.0, green: 0.85, blue: 0.4).opacity(0.9))
+                .frame(width: 46, height: 46)
+                .offset(x: -104, y: -22)
+
+            Circle()
+                .fill(Color(red: 0.35, green: 0.85, blue: 0.95).opacity(0.75))
+                .frame(width: 30, height: 30)
+                .offset(x: 118, y: 34)
+
+            RoundedRectangle(cornerRadius: 4)
+                .fill(.white.opacity(0.5))
+                .frame(width: 90, height: 8)
+                .offset(x: 20, y: -44)
+
+            RoundedRectangle(cornerRadius: 4)
+                .fill(.black.opacity(0.45))
+                .frame(width: 130, height: 8)
+                .offset(x: -30, y: 50)
+        }
+        .frame(width: 340, height: 132)
+        .clipped()
     }
 }
 

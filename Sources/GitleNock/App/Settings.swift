@@ -88,8 +88,10 @@ final class Settings: ObservableObject {
 
     static let refreshChoices: [Double] = [3, 6, 15, 30]
 
-    /// Below this the text on glass stops being readable over a busy desktop.
-    static let opacityRange: ClosedRange<Double> = 0.45...1.0
+    /// The full range is offered. 0 is a genuinely clear panel — only the glass
+    /// controls, the rim and the text — which is hard to read over a busy
+    /// wallpaper but is a deliberate look, not a mistake to be protected from.
+    static let opacityRange: ClosedRange<Double> = 0.0...1.0
 
     @Published var refreshInterval: Double {
         didSet { defaults.set(refreshInterval, forKey: "settings.refreshInterval") }
@@ -171,8 +173,9 @@ final class Settings: ObservableObject {
 
         accent = AccentChoice(rawValue: defaults.string(forKey: "settings.accent") ?? "") ?? .blue
 
-        let storedOpacity = defaults.double(forKey: "settings.panelOpacity")
-        panelOpacity = storedOpacity > 0 ? storedOpacity : 0.82
+        // Read through `object(forKey:)`, not `double(forKey:)`: now that 0 is a
+        // legal setting, a stored 0 has to be told apart from "never set".
+        panelOpacity = defaults.object(forKey: "settings.panelOpacity") as? Double ?? 0.82
 
         launchAtLogin = false
         launchAtLogin = isRegisteredForLogin

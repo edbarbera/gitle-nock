@@ -29,6 +29,9 @@ struct ActionResult: Equatable {
     let succeeded: Bool
     let title: String
     let detail: String?
+    /// Files the action brought in or touched. Populated for a grab, so the
+    /// panel can show what arrived rather than only that something did.
+    var files: [FileChange] = []
 }
 
 /// A short-lived note shown in the collapsed notch, so an action that finishes
@@ -92,6 +95,9 @@ final class AppState: ObservableObject {
     private static let gitQueue = DispatchQueue(label: "gitlenock.git", qos: .userInitiated)
 
     private var activityToken = 0
+    /// True when an action finished while the menu was shut, so its result
+    /// screen is waiting for the user to hover and read it.
+    private var resultAwaitingReview = false
     private let store = RepoStore()
     private var refreshTimer: Timer?
     /// Set when the user explicitly asks, so a denied folder can be retried.
@@ -408,9 +414,30 @@ final class AppState: ObservableObject {
     /// headless and keeps its friendly conflict wording.
     func grab() {
         guard let repo = activeRepo else { return }
+
+        // `work` and `summary` both run on `gitQueue`, in that order, so this
+        // hands the pre-grab commit from one to the other without locking.
+        let before = Handoff<String>()
+
         runWrite(busy: "Grabbing the latest…", failure: "Couldn't grab",
-                 done: "Up to date", icon: "arrow.down") {
-            GitleRunner.run(.grab, in: repo.path)
+                 done: "Up to date", icon: "arrow.down",
+                 summary: {
+                     guard let old = before.value,
+                           let new = GitReader.headSHA(in: repo.path),
+                           old != new
+                     else { return nil }   // nothing came down; no screen worth showing
+
+                     let files = GitReader.changedFiles(from: old, to: new, in: repo.path)
+                     let commits = GitReader.commitCount(from: old, to: new, in: repo.path)
+                     return ActionResult(
+                         succeeded: true,
+                         title: "Got \(commits) update\(commits == 1 ? "" : "s")",
+                         detail: nil,
+                         files: files
+                     )
+                 }) {
+            before.value = GitReader.headSHA(in: repo.path)
+            return GitleRunner.run(.grab, in: repo.path)
         }
     }
 
@@ -570,11 +597,17 @@ final class AppState: ObservableObject {
     ///
     /// `explain` turns a failure into user-facing wording; without it the first
     /// meaningful line of the tool's own output is used.
+    ///
+    /// `summary` runs on the git queue after a successful write, for actions
+    /// whose outcome needs more subprocesses to describe — a grab has to diff
+    /// two commits before it can say what arrived. Returning nil means there was
+    /// nothing worth a screen. It must not touch main-actor state.
     private func runWrite(
         busy: String,
         failure: String,
         done: String? = nil,
         icon: String = "checkmark",
+        summary: (@Sendable () -> ActionResult?)? = nil,
         work: @escaping () -> ShellResult,
         explain: ((ShellResult) -> String)? = nil,
         onSuccess: (() -> Void)? = nil
@@ -591,6 +624,7 @@ final class AppState: ObservableObject {
             let detail = result.succeeded
                 ? nil
                 : (explain?(result) ?? GitleRunner.firstMeaningfulLine(of: result.message))
+            let outcome = result.succeeded ? summary?() : nil
             // Re-read on this queue too; the main thread must not wait on git.
             let (fresh, _, last) = Self.readRepoState(repo.path)
 
@@ -600,7 +634,13 @@ final class AppState: ObservableObject {
                 self.status = fresh
                 self.lastSaveMessage = last
                 if result.succeeded {
-                    self.show(PanelActivity(kind: .success, icon: icon, text: done ?? "Done"))
+                    // The summary knows more than the generic label does — "Got 3
+                    // updates" beats "Up to date" when three actually landed.
+                    self.show(PanelActivity(kind: .success, icon: icon, text: outcome?.title ?? done ?? "Done"))
+                    if let outcome {
+                        self.screen = .result(outcome)
+                        self.resultAwaitingReview = true
+                    }
                     onSuccess?()
                 } else if !self.isBusy, case .main = self.screen {
                     self.show(PanelActivity(kind: .failure, icon: "exclamationmark", text: failure))
@@ -608,6 +648,7 @@ final class AppState: ObservableObject {
                     // or routed elsewhere; don't bury that under a failure card —
                     // this only fires when nothing else already claimed the screen.
                     self.screen = .result(ActionResult(succeeded: false, title: failure, detail: detail))
+                    self.resultAwaitingReview = true
                 }
             }
         }
@@ -626,6 +667,14 @@ final class AppState: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { [weak self] in
             guard let self, self.activity?.token == token else { return }
             withAnimation(Theme.snap) { self.activity = nil }
+        }
+
+        // A result nobody opened shouldn't still be sitting there an hour later,
+        // waiting to greet the next hover with stale news.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            guard let self, self.activityToken == token, self.resultAwaitingReview else { return }
+            self.resultAwaitingReview = false
+            if case .result = self.screen { self.screen = .main }
         }
     }
 
@@ -665,12 +714,30 @@ final class AppState: ObservableObject {
     /// Called when the notch collapses, so the next hover starts somewhere sensible.
     func resetTransientScreens() {
         switch screen {
-        case .save, .result, .confirmSend, .pickFiles, .risks,
+        case .result:
+            // An action that finished with the menu shut has its result waiting
+            // to be read. Clearing it here would mean hovering after the notch
+            // says "Couldn't grab" showed the main menu and no explanation.
+            if !resultAwaitingReview { screen = .main }
+        case .save, .confirmSend, .pickFiles, .risks,
              .confirmProtectedSend, .connect, .setup, .undo, .confirmDiscard:
             screen = .main
         case .main, .files, .repos, .conflicts:
             // Conflicts survive a collapse: half-resolved state is worth keeping.
             break
         }
+    }
+
+    /// Called when the panel opens. Anything waiting to be read has now been
+    /// seen, so the next collapse is free to clear it.
+    func markResultSeen() {
+        resultAwaitingReview = false
+    }
+
+    /// A one-slot mailbox for handing a value from a write's `work` closure to
+    /// its `summary` closure. Both run on `gitQueue`, one strictly after the
+    /// other, so no synchronisation is needed.
+    private final class Handoff<T>: @unchecked Sendable {
+        var value: T?
     }
 }

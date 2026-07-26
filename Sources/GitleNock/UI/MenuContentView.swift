@@ -183,6 +183,7 @@ struct SummaryHeader: View {
                 }
             }
         }
+        .legibleOnPanel()
     }
 
     /// Second line: the reassuring detail under the headline, never a repeat of it.
@@ -297,6 +298,7 @@ struct ChangedFilesStrip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .contentShape(Rectangle())
+            .legibleOnPanel()
         }
         .buttonStyle(.plain)
         .plainSurface(cornerRadius: Theme.controlRadius)
@@ -458,13 +460,19 @@ struct ResultView: View {
     @EnvironmentObject private var state: AppState
     let result: ActionResult
 
+    private var subtitle: String? {
+        if !result.succeeded { return "Here's exactly what git said, in case it helps" }
+        if result.files.isEmpty { return nil }
+        return "\(result.files.count) file\(result.files.count == 1 ? "" : "s") changed on your machine"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             AlertHeader(
                 icon: result.succeeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
                 tint: result.succeeded ? Theme.good : Theme.bad,
                 title: result.title,
-                subtitle: result.succeeded ? nil : "Here's exactly what git said, in case it helps"
+                subtitle: subtitle
             )
 
             if let detail = result.detail {
@@ -479,7 +487,22 @@ struct ResultView: View {
                 .plainSurface(cornerRadius: Theme.controlRadius)
             }
 
-            Spacer(minLength: 0)
+            // What a grab actually brought down. The whole point of the notch
+            // reporting "Got 3 updates" is being able to hover and see which.
+            if !result.files.isEmpty {
+                PanelScroll {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(result.files) { file in
+                            FileRow(change: file)
+                        }
+                    }
+                }
+            }
+
+            if result.files.isEmpty && result.detail == nil {
+                Spacer(minLength: 0)
+            }
+
             ActionButton(title: "Back", icon: "chevron.left") { state.screen = .main }
         }
     }

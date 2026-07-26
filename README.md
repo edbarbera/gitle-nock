@@ -144,7 +144,9 @@ The dot in the notch summarises the project at a glance:
 | 🔴 Red   | Files need conflict resolution         |
 | ⚪️ Grey  | No project selected, or not a git repo |
 
-Amber and red pulse; the other states are still. When an action finishes with the menu shut, the notch grows a short way either side of the cutout to say what happened — an icon on the left, the outcome on the right — then shrinks back.
+Amber and red pulse; the other states are still.
+
+Actions don't hold the menu open. Click one and move away: the notch grows a short way either side of the cutout — an icon on the left, progress on the right — reports the outcome, then shrinks back. Hover again within a minute to read the detail: which files a grab brought down, or exactly what git said when something failed.
 
 Footer icons, left to right: open in VS Code, switch project, go back / undo, refresh, settings, quit.
 
@@ -156,7 +158,7 @@ A sidebar window with five panes.
 
 - **Theme** — Automatic (follows macOS), Light, or Dark. The hardware notch itself always stays black, so it keeps blending into the bezel either way.
 - **Accent colour** — eight choices, including _Match macOS_, which tracks your system accent. It leads every primary action, the focus ring, and the wash across the top of the panel.
-- **Opacity** — how solid the panel's material is. Lower lets more of your desktop through the glass; below about 60% it gets hard to read over a busy wallpaper.
+- **Opacity** — 0–100%, driving both the frosted layer and the tint over it, with no multiplier in between: the number on the slider is what you get. At 0% the panel really is clear — glass buttons, rim and text over your wallpaper. Text drawn straight on the panel picks up a legibility halo as it goes below ~55%, the way desktop icon labels do, so the low end stays usable.
 - **Tone down animation** — keeps the transitions but drops the springy overshoot and the pulsing status dot.
 
 **Projects** — add, remove, and switch. Folders that have gone missing are flagged rather than silently dropped.

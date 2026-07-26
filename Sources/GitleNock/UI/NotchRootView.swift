@@ -79,13 +79,13 @@ struct NotchRootView: View {
     private var panelBackground: some View {
         if showsMaterial {
             ZStack {
-                PanelMaterial()
+                PanelMaterial(strength: Theme.materialStrength)
                 NotchShape().fill(Theme.panelScrim)
                 // A faint wash of the accent across the top keeps the panel from
                 // reading as plain grey glass without tinting the whole surface.
                 NotchShape().fill(
                     LinearGradient(
-                        colors: [Theme.accent.opacity(Theme.isDark ? 0.13 : 0.09), .clear],
+                        colors: [Theme.accentWash, .clear],
                         startPoint: .top,
                         endPoint: .center
                     )
@@ -111,26 +111,42 @@ struct NotchRootView: View {
     // On a notched Mac this strip sits *behind* the cutout, so the middle of it
     // is never visible. Everything therefore hugs the far left and far right.
 
+    /// Width to keep clear down the middle of the top strip. The cutout is
+    /// physically on top of this row, so anything laid out under it is simply
+    /// not there — text has to be given a hard boundary, not just centred away.
+    private var cutoutGap: CGFloat {
+        viewModel.isRealNotch ? viewModel.collapsedSize.width + 32 : 0
+    }
+
     private var collapsedBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             if viewModel.isExpanded {
                 RepoSwitcherButton()
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Color.clear.frame(width: cutoutGap)
+
                 HStack(spacing: 8) {
                     if !state.status.branch.isEmpty {
                         Text(state.status.branch)
                             .font(Theme.display(11, .medium))
                             .foregroundStyle(Theme.textDim)
                             .lineLimit(1)
+                            // Long branch names are usually ticket numbers at the
+                            // front and the meaningful words at the back, so a
+                            // middle ellipsis keeps both ends readable.
+                            .truncationMode(.middle)
                     }
                     StatusDot(status: state.status, isRepo: state.activeRepo != nil)
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             } else if let activity = state.activity {
-                ActivityWings(activity: activity, gap: viewModel.isRealNotch ? viewModel.collapsedSize.width : 0)
+                ActivityWings(activity: activity, gap: cutoutGap)
             } else if !viewModel.isRealNotch {
                 IdlePill(status: state.status, name: state.activeRepo?.name ?? "gitle")
             }
         }
+        .legibleOnPanel()
         .padding(.horizontal, viewModel.isExpanded ? 18 : 12)
         .frame(height: max(viewModel.collapsedSize.height, viewModel.isExpanded ? 32 : 30))
         .frame(maxWidth: .infinity)
@@ -207,13 +223,13 @@ private struct ActivityWings: View {
                 // two things stranded at opposite ends of the screen.
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-            Spacer(minLength: 0)
-                .frame(width: gap > 0 ? gap : 10)
+            Color.clear.frame(width: gap > 0 ? gap : 10)
 
             Text(activity.text)
                 .font(Theme.display(11.5, .medium))
                 .foregroundStyle(Theme.text)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .transition(.opacity)

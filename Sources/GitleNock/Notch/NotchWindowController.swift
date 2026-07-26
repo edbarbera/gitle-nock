@@ -52,10 +52,19 @@ final class NotchWindowController {
 
         // Typing in the save box shouldn't be interrupted by the cursor wandering off.
         state.$screen
-            .combineLatest(state.$isBusy)
-            .sink { [weak self] screen, busy in
-                self?.viewModel.setPin(.busy, busy)
+            .sink { [weak self] screen in
                 self?.viewModel.setPin(.typing, screen == .save)
+            }
+            .store(in: &cancellables)
+
+        // Work does *not* hold the panel open. Once the user has clicked the
+        // action they're done with the menu, and the notch reports progress and
+        // the outcome on its own — pinning it open meant the panel hung around
+        // over their editor until they happened to move the mouse again.
+        state.$isBusy
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.evaluatePointer() }
             }
             .store(in: &cancellables)
 
@@ -222,6 +231,9 @@ final class NotchWindowController {
         panel.orderFrontRegardless()
         panel.makeKey()
         state.refresh()
+        // Whatever the notch was reporting has now been opened and read, so the
+        // next collapse is free to clear it away.
+        state.markResultSeen()
 
         withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
             viewModel.isExpanded = true
@@ -276,7 +288,6 @@ final class NotchViewModel: ObservableObject {
     /// several can apply at once — a single flag lets one condition clear
     /// another's hold and collapse the menu out from under the user.
     enum PinReason: Hashable {
-        case busy
         case typing
         case systemPanel
         case debug
