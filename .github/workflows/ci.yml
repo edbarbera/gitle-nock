@@ -11,15 +11,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  BUILD_CACHE_KEY: spm-macos-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
-
 jobs:
   build-tests:
     name: Build (tests)
     runs-on: macos-26
+    outputs:
+      cache_key: ${{ steps.cachekey.outputs.key }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute cache key
+        id: cachekey
+        run: echo "key=spm-macos-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Tests/**/*.swift') }}" >> "$GITHUB_OUTPUT"
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
@@ -28,7 +31,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ env.BUILD_CACHE_KEY }}
+          key: ${{ steps.cachekey.outputs.key }}
           restore-keys: |
             spm-macos-
 
@@ -63,7 +66,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ env.BUILD_CACHE_KEY }}
+          key: ${{ needs.build-tests.outputs.cache_key }}
           fail-on-cache-miss: true
 
       - name: Run ${{ matrix.suite.name }} tests
@@ -71,7 +74,7 @@ jobs:
 
   smoke:
     name: App Smoke Launch
-    needs: test
+    needs: [build-tests, test]
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -79,13 +82,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Cache SwiftPM
-        uses: actions/cache@v4
+      - name: Restore built app binaries
+        uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ env.BUILD_CACHE_KEY }}
-          restore-keys: |
-            spm-macos-
+          key: ${{ needs.build-tests.outputs.cache_key }}
+          fail-on-cache-miss: true
 
       - name: Bundle and launch real .app
         run: scripts/smoke-launch.sh release
