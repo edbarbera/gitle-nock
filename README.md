@@ -85,6 +85,41 @@ To stop it:
 pkill -f GitleNock
 ```
 
+## Running the tests
+
+```sh
+swift test
+```
+
+123 tests, real `git`/`gitle` binaries against real repos in temp directories — nothing mocked. Runs in about a minute.
+
+| Folder                     | What it covers                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `Tests/GitleNockTests/Unit/`        | Pure logic: `Shell`, `SafetyRails`, `RepoModels`, `RepoStore`, `GitleRunner` parsing. |
+| `Tests/GitleNockTests/Integration/` | `GitReader`/`GitWriter` against real repos: status parsing, save/send/undo/discard, real merge/rebase conflicts. |
+| `Tests/GitleNockTests/Functional/`  | Multi-step flows as `AppState` sequences them — flagged-secret save, first-run setup order, mixed conflict resolution, send's branching. |
+| `Tests/GitleNockTests/EndToEnd/`    | Two cloned "developers" + a bare remote: save → send → rejected push → conflict → resolve → send again. One path uses plain `git pull` (deterministic); the other drives real `gitle grab`. |
+| `Tests/GitleNockTests/Smoke/`       | A handful of fast sanity checks — meant to fail loud before the slower suites bother. |
+| `Tests/GitleNockTests/Performance/` | Resource-usage regression guards: refresh cost on ordinary and 500-file repos, timed-out subprocesses leave no survivors, concurrent multi-repo polling. |
+
+Run one category with `--filter`:
+
+```sh
+swift test --filter SmokeTests
+swift test --filter EndToEnd        # matches every *E2E*Tests class
+```
+
+Two things worth knowing:
+
+- **`gitle grab` tests skip themselves** if `gitle` isn't on your PATH, rather than failing — see `GitleGrabE2ETests`.
+- **Nothing touches your real setup.** `GitWriter.setIdentity` writes git's `--global` config; tests redirect it to a throwaway file via `GIT_CONFIG_GLOBAL` so your actual `~/.gitconfig` is never written. `RepoStore` takes an injectable `UserDefaults`, so `RepoStoreTests` never touches the app's real saved project list.
+
+To also confirm the built `.app` launches without crashing (separate from `swift test`, since it opens a real window):
+
+```sh
+./scripts/smoke-launch.sh
+```
+
 ## Install
 
 **From a release.** Grab the DMG from [Releases](../../releases), open it, drag the app to Applications. Signed and notarised — no Gatekeeper prompt.
