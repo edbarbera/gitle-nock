@@ -34,7 +34,10 @@ final class PerformanceTests: XCTestCase {
         let status = GitReader.status(of: dir)
         let elapsed = Date().timeIntervalSince(start)
 
-        XCTAssertEqual(status.changes.count, 505, "500 new untracked files plus the 5 tracked files re-modified after commit")
+        XCTAssertEqual(
+            status.changes.count, 505,
+            "500 new untracked files plus the 5 tracked files re-modified after commit"
+        )
         XCTAssertLessThan(elapsed, 5, "a single refresh on a busy repo must stay well under a user-noticeable delay")
     }
 
@@ -58,7 +61,10 @@ final class PerformanceTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(start)
         let perCall = elapsed / Double(iterations)
 
-        XCTAssertLessThan(perCall, 0.5, "average refresh cost crept up — check the concurrent reads in GitReader.status")
+        XCTAssertLessThan(
+            perCall, 0.5,
+            "average refresh cost crept up — check the concurrent reads in GitReader.status"
+        )
     }
 
     // MARK: - Subprocess hygiene under load
@@ -69,7 +75,7 @@ final class PerformanceTests: XCTestCase {
     /// path ever regressed to not terminating the process, this is what
     /// would quietly accumulate zombie/orphaned `sleep` processes under
     /// ordinary, sustained use of the app.
-    func testWedgedProcessesAreKilledAndDoNotAccumulate() {
+    func testWedgedProcessesAreKilledAndDoNotAccumulate() throws {
         // A uniquely-named script file, launched directly (not via `sh -c`),
         // so its path is guaranteed to show up verbatim in `ps` — a shell
         // may otherwise exec-replace a trailing "sleep 10" and lose any
@@ -77,8 +83,8 @@ final class PerformanceTests: XCTestCase {
         let scriptDir = TestRepo.makeTempDir("perf-script")
         defer { TestRepo.cleanup(scriptDir) }
         let scriptPath = (scriptDir as NSString).appendingPathComponent("wedged-\(UUID().uuidString).sh")
-        try! "#!/bin/sh\nsleep 10\n".write(toFile: scriptPath, atomically: true, encoding: .utf8)
-        try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
+        try "#!/bin/sh\nsleep 10\n".write(toFile: scriptPath, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
 
         let rounds = 10
         for _ in 0..<rounds {
@@ -119,18 +125,18 @@ final class PerformanceTests: XCTestCase {
 private extension TestRepo {
     static func makeRepoWithFiles(tracked: Int, untracked: Int) -> String {
         let dir = makeRepo()
-        for i in 0..<tracked {
-            write("tracked-\(i).txt", "content \(i)", in: dir)
+        for index in 0..<tracked {
+            write("tracked-\(index).txt", "content \(index)", in: dir)
         }
         if tracked > 0 {
             git(["add", "-A"], in: dir)
             git(["commit", "-m", "add tracked files"], in: dir)
-            for i in 0..<tracked {
-                write("tracked-\(i).txt", "changed \(i)", in: dir)
+            for index in 0..<tracked {
+                write("tracked-\(index).txt", "changed \(index)", in: dir)
             }
         }
-        for i in 0..<untracked {
-            write("untracked-\(i).txt", "new \(i)", in: dir)
+        for index in 0..<untracked {
+            write("untracked-\(index).txt", "new \(index)", in: dir)
         }
         return dir
     }

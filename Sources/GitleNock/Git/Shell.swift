@@ -23,7 +23,7 @@ enum Shell {
         "/usr/bin",
         "/bin",
         NSString(string: "~/.local/bin").expandingTildeInPath,
-        NSString(string: "~/bin").expandingTildeInPath,
+        NSString(string: "~/bin").expandingTildeInPath
     ]
 
     static func which(_ tool: String) -> String? {
@@ -100,6 +100,12 @@ private final class OutputSink: @unchecked Sendable {
     func appendOut(_ data: Data) { lock.lock(); outData.append(data); lock.unlock() }
     func appendErr(_ data: Data) { lock.lock(); errData.append(data); lock.unlock() }
 
+    // Subprocess output can contain non-UTF8 bytes (odd filenames, binary diffs).
+    // The failable `String(bytes:encoding:)` would turn that into an empty
+    // string and hide real output, so the lossy replacement-character decode
+    // is intentional here, not an oversight.
+    // swiftlint:disable:next optional_data_string_conversion
     var stdout: String { lock.lock(); defer { lock.unlock() }; return String(decoding: outData, as: UTF8.self) }
+    // swiftlint:disable:next optional_data_string_conversion
     var stderr: String { lock.lock(); defer { lock.unlock() }; return String(decoding: errData, as: UTF8.self) }
 }

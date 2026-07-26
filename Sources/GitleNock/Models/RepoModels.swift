@@ -129,7 +129,8 @@ struct RepoStatus: Equatable {
         if !isRepo { return "Not set up yet" }
         // Conflicts outrank everything: nothing else can proceed until they're fixed.
         if hasConflicts {
-            return "\(conflictedFiles.count) file\(conflictedFiles.count == 1 ? "" : "s") need\(conflictedFiles.count == 1 ? "s" : "") your help"
+            let plural = conflictedFiles.count == 1
+            return "\(conflictedFiles.count) file\(plural ? "" : "s") need\(plural ? "s" : "") your help"
         }
         if behind > 0 && !isClean { return "\(changes.count) unsaved · \(behind) waiting online" }
         if behind > 0 { return "\(behind) update\(behind == 1 ? "" : "s") waiting online" }

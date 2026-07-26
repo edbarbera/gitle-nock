@@ -13,7 +13,11 @@ enum TestRepo {
     static func makeTempDir(_ label: String = "") -> String {
         let dir = NSTemporaryDirectory()
             .appending("gitlenock-tests-\(label.isEmpty ? "" : "\(label)-")\(UUID().uuidString)")
-        try! FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            fatalError("TestRepo.makeTempDir: could not create \(dir): \(error)")
+        }
         return dir
     }
 
@@ -47,7 +51,11 @@ enum TestRepo {
         let path = (dir as NSString).appendingPathComponent(name)
         let parent = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
-        try! contents.write(toFile: path, atomically: true, encoding: .utf8)
+        do {
+            try contents.write(toFile: path, atomically: true, encoding: .utf8)
+        } catch {
+            fatalError("TestRepo.write: could not write \(path): \(error)")
+        }
     }
 
     static func contents(_ name: String, in dir: String) -> String? {

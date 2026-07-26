@@ -30,7 +30,11 @@ final class SaveFlowFunctionalTests: XCTestCase {
         XCTAssertTrue(result.succeeded, result.message)
 
         let status = GitReader.status(of: dir)
-        XCTAssertEqual(status.changes.map(\.path), [".env.production"], "the secret must remain uncommitted, still flagged next time")
+        XCTAssertEqual(
+            status.changes.map(\.path),
+            [".env.production"],
+            "the secret must remain uncommitted, still flagged next time"
+        )
     }
 
     func testAcceptRisksCommitsTheFlaggedFileAnyway() {
