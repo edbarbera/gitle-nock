@@ -58,6 +58,22 @@ xcrun stapler staple "$APP"
 echo "Building the DMG…"
 rm -f "$DMG"
 hdiutil create -volname "gitle nock" -srcfolder "$APP" -ov -format UDZO "$DMG"
+
+# hdiutil never signs the disk image itself, and notarization/stapling a
+# ticket onto it doesn't produce one either — spctl's "install" check on a
+# DMG looks for its own signature, so an unsigned DMG reads as "no usable
+# signature" even with a valid stapled ticket. Sign it directly.
+echo "Signing the DMG…"
+codesign --force --sign "$SIGN_ID" "$DMG"
+
+# The app's notarization ticket only covers the app's own hash — the DMG is a
+# separate artifact and needs its own notarization submission before it can
+# be stapled. Skipping this step is what causes stapler's "CloudKit query
+# ... Record not found" on the DMG: there's no ticket for it to find yet.
+echo "Submitting the DMG for notarization…"
+xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+
+echo "Stapling the notarization ticket to the DMG…"
 xcrun stapler staple "$DMG"
 
 echo
