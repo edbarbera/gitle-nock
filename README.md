@@ -11,7 +11,7 @@ Built for people meeting version control for the first time, usually because the
 │  3 unsaved changes                                        │
 │  Save them whenever you like — nothing goes online yet    │
 │                                                           │
-│  ┌────────────┐③ ┌────────────┐  ┌────────────┐           │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐           │
 │  │ ⤓          │  │ ↑          │  │ ↓          │           │
 │  │ Save your  │  │ Send it    │  │ Grab the   │           │
 │  │ work       │  │ online     │  │ latest     │           │
