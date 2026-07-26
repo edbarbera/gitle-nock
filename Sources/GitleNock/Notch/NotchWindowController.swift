@@ -8,7 +8,7 @@ final class NotchWindowController {
     /// Wide and shallow, so the menu reads as an extension of the notch rather
     /// than a column hanging off it. The height must clear the tallest screen's
     /// content — anything shorter silently clips the footer off the bottom.
-    static let expandedSize = CGSize(width: 780, height: 322)
+    static let expandedSize = CGSize(width: 800, height: 332)
 
     /// Above the menu bar, where the notch lives.
     static let floatingLevel = NSWindow.Level(Int(CGWindowLevelForKey(.mainMenuWindow)) + 2)
@@ -77,6 +77,18 @@ final class NotchWindowController {
             }
             .store(in: &cancellables)
 
+        // Liquid Glass renders a light or a dark variant off the *window's*
+        // appearance, not off anything SwiftUI draws inside it. Without this the
+        // panel's own light/dark setting is ignored and every glass surface
+        // comes out pale, whatever the palette underneath says.
+        state.settings.$appearance
+            .combineLatest(state.settings.$systemIsDark)
+            .sink { [weak self] _, _ in
+                Task { @MainActor in self?.applyAppearance() }
+            }
+            .store(in: &cancellables)
+        applyAppearance()
+
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -103,7 +115,8 @@ final class NotchWindowController {
 
     /// Lets the menu be driven without a cursor, so the UI can be inspected and
     /// screenshotted from a script. The notification's object selects a command:
-    /// "addrepo", "settings", "editor", or nil to toggle the menu open and shut.
+    /// "addrepo", "settings", "editor", "screen:<name>" to jump straight to one
+    /// of the flow screens, or nil to toggle the menu open and shut.
     ///
     /// Off unless GITLENOCK_DEBUG=1. It is a system-wide notification, so leaving
     /// it always-on would let any process on the Mac pop this app's folder chooser.
@@ -120,6 +133,18 @@ final class NotchWindowController {
                 case "addrepo": self.state.addRepo(); return
                 case "settings": self.state.openSettings(); return
                 case "editor": self.state.openActiveRepoInEditor(); return
+                case "grab":
+                    // Runs a real action with the menu shut, which is the only
+                    // way to see the collapsed notch report back.
+                    self.viewModel.setPin(.debug, false)
+                    self.state.grab()
+                    self.collapse()
+                    return
+                case let command? where command.hasPrefix("screen:"):
+                    self.expand()
+                    self.viewModel.setPin(.debug, true)
+                    self.state.jumpToScreen(String(command.dropFirst("screen:".count)))
+                    return
                 default: break
                 }
                 if self.viewModel.pinReasons.contains(.debug) {
@@ -132,6 +157,10 @@ final class NotchWindowController {
                 }
             }
         }
+    }
+
+    private func applyAppearance() {
+        panel.appearance = NSAppearance(named: state.settings.resolvedIsDark ? .darkAqua : .aqua)
     }
 
     // MARK: - Layout

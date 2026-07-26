@@ -31,6 +31,21 @@ struct ActionResult: Equatable {
     let detail: String?
 }
 
+/// A short-lived note shown in the collapsed notch, so an action that finishes
+/// after the panel has closed still reports back. Modelled on a Live Activity:
+/// it never asks for anything, it just says what happened and fades.
+struct PanelActivity: Equatable {
+    enum Kind: Equatable { case working, success, failure }
+
+    let kind: Kind
+    let icon: String
+    let text: String
+
+    /// Bumped on every new activity so the pill re-animates even when two
+    /// identical notes land back to back.
+    var token: Int = 0
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published private(set) var repos: [Repo] = []
@@ -58,6 +73,9 @@ final class AppState: ObservableObject {
     /// The description on the last save, shown before undoing it.
     @Published private(set) var lastSaveMessage: String?
 
+    /// What the collapsed notch is currently reporting, if anything.
+    @Published private(set) var activity: PanelActivity?
+
     /// True while a system window (the folder chooser) is on screen. The notch
     /// panel sits above the menu bar, so it has to step aside for one.
     @Published private(set) var isPresentingSystemPanel = false
@@ -73,6 +91,7 @@ final class AppState: ObservableObject {
     /// Serial queue for every subprocess this app runs.
     private static let gitQueue = DispatchQueue(label: "gitlenock.git", qos: .userInitiated)
 
+    private var activityToken = 0
     private let store = RepoStore()
     private var refreshTimer: Timer?
     /// Set when the user explicitly asks, so a denied folder can be retried.
@@ -297,7 +316,8 @@ final class AppState: ObservableObject {
         let paths = pickedInOrder
         guard !paths.isEmpty else { return }
 
-        runWrite(busy: "Saving your work…", failure: "That didn't work") {
+        runWrite(busy: "Saving your work…", failure: "That didn't work",
+                 done: "Saved", icon: "tray.and.arrow.down.fill") {
             GitWriter.save(paths: paths, message: message, in: repo.path)
         } onSuccess: { [weak self] in
             self?.saveMessage = ""
@@ -359,7 +379,8 @@ final class AppState: ObservableObject {
         let branch = status.branch
         let hasUpstream = status.hasUpstream
 
-        runWrite(busy: "Sending it online…", failure: "Couldn't send") {
+        runWrite(busy: "Sending it online…", failure: "Couldn't send",
+                 done: "Sent online", icon: "arrow.up") {
             GitWriter.send(branch: branch, hasUpstream: hasUpstream, in: repo.path)
         } explain: { result in
             GitWriter.explainPushFailure(result.message)
@@ -371,7 +392,8 @@ final class AppState: ObservableObject {
         let url = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty, let repo = activeRepo else { return }
 
-        runWrite(busy: "Connecting…", failure: "Couldn't connect that link") {
+        runWrite(busy: "Connecting…", failure: "Couldn't connect that link",
+                 done: "Connected", icon: "link") {
             GitWriter.addRemote(url, in: repo.path)
         } onSuccess: { [weak self] in
             self?.remoteURL = ""
@@ -386,7 +408,8 @@ final class AppState: ObservableObject {
     /// headless and keeps its friendly conflict wording.
     func grab() {
         guard let repo = activeRepo else { return }
-        runWrite(busy: "Grabbing the latest…", failure: "Couldn't grab") {
+        runWrite(busy: "Grabbing the latest…", failure: "Couldn't grab",
+                 done: "Up to date", icon: "arrow.down") {
             GitleRunner.run(.grab, in: repo.path)
         }
     }
@@ -397,7 +420,8 @@ final class AppState: ObservableObject {
 
     func undoLastSave() {
         guard let repo = activeRepo else { return }
-        runWrite(busy: "Undoing your last save…", failure: "Couldn't undo") {
+        runWrite(busy: "Undoing your last save…", failure: "Couldn't undo",
+                 done: "Undone", icon: "arrow.uturn.backward") {
             GitWriter.undoLastSave(in: repo.path)
         }
     }
@@ -405,7 +429,8 @@ final class AppState: ObservableObject {
     func discardAllChanges() {
         guard let repo = activeRepo else { return }
         let hasCommits = status.hasCommits
-        runWrite(busy: "Discarding changes…", failure: "Couldn't discard") {
+        runWrite(busy: "Discarding changes…", failure: "Couldn't discard",
+                 done: "Changes discarded", icon: "trash") {
             GitWriter.discardAllChanges(hasCommits: hasCommits, in: repo.path)
         }
     }
@@ -430,7 +455,8 @@ final class AppState: ObservableObject {
         let wantsFirstSave = setupWantsFirstSave
         let alreadyRepo = status.isRepo
 
-        runWrite(busy: "Setting things up…", failure: "Setup didn't finish") {
+        runWrite(busy: "Setting things up…", failure: "Setup didn't finish",
+                 done: "All set up", icon: "sparkles") {
             if !alreadyRepo {
                 let initialised = GitWriter.initRepo(in: repo.path)
                 guard initialised.succeeded else { return initialised }
@@ -514,7 +540,8 @@ final class AppState: ObservableObject {
     func finishConflicts() {
         guard let repo = activeRepo, allConflictsResolved else { return }
         let op = status.mergeOp
-        runWrite(busy: "Finishing up…", failure: "Couldn't finish") {
+        runWrite(busy: "Finishing up…", failure: "Couldn't finish",
+                 done: "Sorted", icon: "checkmark") {
             GitWriter.continueOp(op, in: repo.path)
         } onSuccess: { [weak self] in
             self?.conflicts = []
@@ -524,7 +551,8 @@ final class AppState: ObservableObject {
     func abortConflicts() {
         guard let repo = activeRepo else { return }
         let op = status.mergeOp
-        runWrite(busy: "Undoing it…", failure: "Couldn't back out") {
+        runWrite(busy: "Undoing it…", failure: "Couldn't back out",
+                 done: "Backed out", icon: "arrow.uturn.backward") {
             GitWriter.abortOp(op, in: repo.path)
         } onSuccess: { [weak self] in
             self?.conflicts = []
@@ -545,6 +573,8 @@ final class AppState: ObservableObject {
     private func runWrite(
         busy: String,
         failure: String,
+        done: String? = nil,
+        icon: String = "checkmark",
         work: @escaping () -> ShellResult,
         explain: ((ShellResult) -> String)? = nil,
         onSuccess: (() -> Void)? = nil
@@ -554,6 +584,7 @@ final class AppState: ObservableObject {
         isBusy = true
         busyLabel = busy
         screen = .main
+        show(PanelActivity(kind: .working, icon: "circle.dashed", text: busy))
 
         Self.gitQueue.async {
             let result = work()
@@ -569,14 +600,65 @@ final class AppState: ObservableObject {
                 self.status = fresh
                 self.lastSaveMessage = last
                 if result.succeeded {
+                    self.show(PanelActivity(kind: .success, icon: icon, text: done ?? "Done"))
                     onSuccess?()
                 } else if !self.isBusy, case .main = self.screen {
+                    self.show(PanelActivity(kind: .failure, icon: "exclamationmark", text: failure))
                     // onSuccess may have kicked off another write (connect → send)
                     // or routed elsewhere; don't bury that under a failure card —
                     // this only fires when nothing else already claimed the screen.
                     self.screen = .result(ActionResult(succeeded: false, title: failure, detail: detail))
                 }
             }
+        }
+    }
+
+    /// Publishes a note to the collapsed notch. A `.working` note stays put
+    /// until the outcome replaces it; the outcome itself fades on its own.
+    private func show(_ next: PanelActivity) {
+        activityToken &+= 1
+        var note = next
+        note.token = activityToken
+        withAnimation(Theme.snap) { activity = note }
+
+        guard next.kind != .working else { return }
+        let token = activityToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { [weak self] in
+            guard let self, self.activity?.token == token else { return }
+            withAnimation(Theme.snap) { self.activity = nil }
+        }
+    }
+
+    /// Routes the panel to a named screen, seeding whatever that screen needs to
+    /// have something to draw. Only reachable through the debug notification,
+    /// which is off unless `GITLENOCK_DEBUG=1`.
+    func jumpToScreen(_ name: String) {
+        switch name {
+        case "pickFiles": beginSave()
+        case "save":
+            pickedPaths = Set(status.changes.map(\.path))
+            screen = .save
+        case "risks":
+            pickedPaths = Set(status.changes.map(\.path))
+            screen = .risks(SafetyRails.review(paths: Array(pickedPaths), root: activeRepo?.path ?? ""))
+        case "files": screen = .files
+        case "repos": screen = .repos
+        case "confirmSend": screen = .confirmSend
+        case "confirmProtectedSend": screen = .confirmProtectedSend(status.branch.isEmpty ? "main" : status.branch)
+        case "connect": screen = .connect
+        case "setup": beginSetup()
+        case "undo": screen = .undo
+        case "confirmDiscard": screen = .confirmDiscard
+        case "conflicts":
+            conflicts = status.changes.prefix(3).map { ConflictFile(path: $0.path) }
+            screen = .conflicts
+        case "result":
+            screen = .result(ActionResult(
+                succeeded: false,
+                title: "Couldn't send",
+                detail: "! [rejected] main -> main (fetch first)\nerror: failed to push some refs"
+            ))
+        default: screen = .main
         }
     }
 

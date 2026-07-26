@@ -26,12 +26,17 @@ final class SettingsWindowController {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "gitle nock Settings"
+        // The sidebar's blur runs the full height of the window, so the titlebar
+        // has to be see-through or it cuts a grey band across the top of it.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
         window.contentView = NSHostingView(
             rootView: SettingsView()
                 .environmentObject(state)

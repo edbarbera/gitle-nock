@@ -5,6 +5,10 @@ struct SaveView: View {
     @EnvironmentObject private var state: AppState
     @FocusState private var focused: Bool
 
+    private var trimmed: String {
+        state.saveMessage.trimmingCharacters(in: .whitespaces)
+    }
+
     private var pickedSummary: String {
         let picked = state.pickedPaths.count
         let total = state.status.changes.count
@@ -15,94 +19,139 @@ struct SaveView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             // Back lands on the checklist, not the menu: the picking step is what
             // came before, and stepping over it would lose the selection.
-            BackHeader(title: "Save your work", back: { state.screen = .pickFiles })
+            BackHeader(
+                title: "Describe what you changed",
+                subtitle: "In your own words — this is how you'll recognise it later",
+                back: { state.screen = .pickFiles }
+            )
 
-            Text("Describe what you changed, in your own words.")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.textDim)
+            PanelTextField(
+                placeholder: "fixed the login page",
+                text: $state.saveMessage,
+                focused: $focused,
+                lines: 1...3,
+                onSubmit: { state.save() }
+            )
 
-            TextField("fixed the login page", text: $state.saveMessage, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1...3)
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.card))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(focused ? Theme.accent.opacity(0.7) : Theme.hairline, lineWidth: 1)
-                )
-                .focused($focused)
-                .onSubmit { state.save() }
-
-            // Reflects the checklist, not the whole repo — the two differ as soon
-            // as anything was unticked, and quietly saying "all 12" would be a lie.
-            Text(pickedSummary)
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.textFaint)
-
-            HoverCard(tint: Theme.warn, action: { state.save() }) {
-                HStack(spacing: 8) {
-                    IconChip(icon: "tray.and.arrow.down.fill", tint: Theme.warn, size: 20)
-                    Text("Save it")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.text)
+            HStack(spacing: 8) {
+                // Reflects the checklist, not the whole repo — the two differ as
+                // soon as anything was unticked, and quietly saying "all 12"
+                // would be a lie.
+                Text(pickedSummary)
+                    .font(Theme.body(11))
+                    .foregroundStyle(Theme.textFaint)
+                Spacer(minLength: 0)
+                ForEach(SaveView.suggestions, id: \.self) { hint in
+                    ChipButton(title: hint, tint: Theme.warn) {
+                        state.saveMessage = hint
+                        focused = true
+                    }
                 }
             }
-            .disabled(state.saveMessage.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(state.saveMessage.trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
 
-            Spacer(minLength: 0)
+            // Naming them here is the last chance to spot a file that shouldn't
+            // be going in, and it keeps the screen from being one text box
+            // floating in an empty panel.
+            PanelScroll {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(state.status.changes.filter { state.pickedPaths.contains($0.path) }) { change in
+                        FileRow(change: change)
+                    }
+                }
+            }
+
+            ActionButton(
+                title: "Save it",
+                icon: "tray.and.arrow.down.fill",
+                tint: Theme.warn,
+                fills: true
+            ) { state.save() }
+                .disabled(trimmed.isEmpty)
         }
         .onAppear { focused = true }
     }
+
+    /// Starters for the blank page, in the same plain voice the rest of the app
+    /// uses. Tapping one fills the box rather than saving straight away.
+    private static let suggestions = ["work in progress", "small fixes", "first draft"]
 }
+
+/// The panel's text input. Stock `TextField` chrome is a bright system box that
+/// looks pasted on top of glass, so the field draws its own.
+struct PanelTextField: View {
+    let placeholder: String
+    @Binding var text: String
+    var focused: FocusState<Bool>.Binding
+    var lines: ClosedRange<Int> = 1...1
+    var monospaced: Bool = false
+    var onSubmit: () -> Void = {}
+
+    var body: some View {
+        TextField(placeholder, text: $text, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(monospaced ? Theme.mono(12) : Theme.body(13))
+            .foregroundStyle(Theme.text)
+            .lineLimit(lines)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+                    .fill(Theme.isDark ? .black.opacity(0.22) : .white.opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+                    .strokeBorder(
+                        focused.wrappedValue ? Theme.accent.opacity(0.8) : Theme.stroke,
+                        lineWidth: focused.wrappedValue ? 1.5 : 0.8
+                    )
+            )
+            .shadow(color: Theme.accent.opacity(focused.wrappedValue ? 0.22 : 0), radius: 10)
+            .animation(Theme.hover, value: focused.wrappedValue)
+            .focused(focused)
+            .onSubmit(onSubmit)
+    }
+}
+
+// MARK: - What changed
 
 struct FilesView: View {
     @EnvironmentObject private var state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            BackHeader(title: "What changed")
+        VStack(alignment: .leading, spacing: 12) {
+            BackHeader(
+                title: "What changed",
+                subtitle: "\(state.status.changes.count) file\(state.status.changes.count == 1 ? "" : "s") since your last save"
+            )
 
-            ScrollView {
+            PanelScroll {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(state.status.changes) { change in
-                        HStack(spacing: 8) {
-                            Image(systemName: change.kind.symbol)
-                                .font(.system(size: 11))
-                                .foregroundStyle(tint(for: change.kind))
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(change.filename)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Theme.text)
-                                Text(change.kind.rawValue)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(Theme.textFaint)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.vertical, 3)
+                        FileRow(change: change)
                     }
                 }
             }
 
-            Spacer(minLength: 0)
-            HoverCard(tint: Theme.warn, action: { state.beginSave() }) {
-                HStack(spacing: 8) {
-                    IconChip(icon: "tray.and.arrow.down.fill", tint: Theme.warn, size: 20)
-                    Text("Save these")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.text)
-                }
-            }
+            ActionButton(
+                title: "Save these",
+                icon: "tray.and.arrow.down.fill",
+                tint: Theme.warn,
+                fills: true
+            ) { state.beginSave() }
         }
     }
+}
 
-    private func tint(for kind: FileChange.Kind) -> Color {
+/// One changed file. Shared by the read-only list and the save checklist, so a
+/// file looks the same wherever it's mentioned.
+struct FileRow: View {
+    let change: FileChange
+    var trailing: String? = nil
+
+    static func tint(for kind: FileChange.Kind) -> Color {
         switch kind {
         case .new: return Theme.good
         case .changed: return Theme.warn
@@ -110,31 +159,62 @@ struct FilesView: View {
         case .renamed: return Theme.accent
         }
     }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: change.kind.symbol)
+                .font(.system(size: 12))
+                .foregroundStyle(Self.tint(for: change.kind))
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(change.filename)
+                    .font(Theme.body(12.5, .medium))
+                    .foregroundStyle(Theme.text)
+                Text(change.path)
+                    .font(Theme.mono(9.5))
+                    .foregroundStyle(Theme.textFaint)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(trailing ?? change.kind.rawValue)
+                .font(Theme.display(10, .medium))
+                .foregroundStyle(Self.tint(for: change.kind).opacity(0.9))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Self.tint(for: change.kind).opacity(0.13)))
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .plainSurface(cornerRadius: 11)
+    }
 }
+
+// MARK: - Projects
 
 struct ReposView: View {
     @EnvironmentObject private var state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            BackHeader(title: "Your projects")
+        VStack(alignment: .leading, spacing: 12) {
+            BackHeader(
+                title: "Your projects",
+                subtitle: state.repos.count == 1 ? "1 folder being watched" : "\(state.repos.count) folders being watched"
+            )
 
-            ScrollView {
-                VStack(spacing: 4) {
+            PanelScroll {
+                VStack(spacing: 5) {
                     ForEach(state.repos) { repo in
                         RepoRow(repo: repo, isActive: repo.id == state.activeRepo?.id)
                     }
                 }
             }
 
-            Spacer(minLength: 0)
-            HoverCard(tint: Theme.accent, action: { state.addRepo() }) {
-                HStack(spacing: 8) {
-                    IconChip(icon: "plus", tint: Theme.accent, size: 20)
-                    Text("Add a project")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.text)
-                }
+            ActionButton(title: "Add a project", icon: "folder.badge.plus", tint: Theme.accent, fills: true) {
+                state.addRepo()
             }
         }
     }
@@ -147,17 +227,19 @@ struct RepoRow: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                .font(.system(size: 11))
-                .foregroundStyle(isActive ? Theme.accent : Theme.textFaint)
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .strokeBorder(isActive ? Theme.accent : Theme.stroke, lineWidth: isActive ? 5 : 1.2)
+                    .frame(width: 14, height: 14)
+            }
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(repo.name)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                    .font(Theme.display(12.5, isActive ? .semibold : .medium))
                     .foregroundStyle(Theme.text)
                 Text(repo.path)
-                    .font(.system(size: 9))
+                    .font(Theme.mono(9.5))
                     .foregroundStyle(Theme.textFaint)
                     .lineLimit(1)
                     .truncationMode(.head)
@@ -165,55 +247,37 @@ struct RepoRow: View {
 
             Spacer(minLength: 0)
 
-            if hovering {
-                Button {
-                    state.remove(repo)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Theme.textDim)
-                }
-                .buttonStyle(.plain)
-                .help("Remove from this list (your files stay put)")
+            if isActive {
+                StatusPill(text: "Open", tint: Theme.accent)
             }
+
+            Button {
+                state.remove(repo)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.textDim)
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(Theme.surface))
+            }
+            .buttonStyle(.plain)
+            .opacity(hovering ? 1 : 0)
+            .help("Remove from this list (your files stay put)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(hovering ? Theme.cardHover : Theme.card)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .plainSurface(cornerRadius: 12, tint: isActive ? Theme.accent : nil)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(hovering ? Theme.surfaceHover : .clear)
+                .allowsHitTesting(false)
         )
         .contentShape(Rectangle())
         .onTapGesture {
             state.select(repo)
             state.screen = .main
         }
+        .animation(Theme.hover, value: hovering)
         .onHover { hovering = $0 }
-    }
-}
-
-struct BackHeader: View {
-    @EnvironmentObject private var state: AppState
-    let title: String
-    /// Where the chevron goes. Defaults to the main menu; multi-step flows pass
-    /// their own previous step.
-    var back: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Button {
-                if let back { back() } else { state.screen = .main }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.textDim)
-            }
-            .buttonStyle(.plain)
-
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.text)
-            Spacer()
-        }
     }
 }
