@@ -10,7 +10,9 @@ final class ConflictResolutionIntegrationTests: XCTestCase {
         defer { TestRepo.cleanup(dir) }
 
         XCTAssertEqual(GitReader.currentOp(in: dir), .rebase)
-        XCTAssertTrue(GitWriter.stillConflicted("shared.txt", in: dir), "the conflict markers must still be there before anyone resolves it")
+        XCTAssertTrue(GitWriter.stillConflicted("shared.txt", in: dir),
+            "the conflict markers must still be there before anyone resolves it"
+        )
 
         XCTAssertTrue(GitWriter.keepTheirs("shared.txt", in: dir).succeeded)
         XCTAssertTrue(GitWriter.markResolved("shared.txt", in: dir).succeeded)

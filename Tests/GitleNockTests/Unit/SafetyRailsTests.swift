@@ -66,10 +66,13 @@ final class SafetyRailsTests: XCTestCase {
         XCTAssertTrue(report.isEmpty)
     }
 
-    func testReviewDoesNotFlagDirectoriesAsLargeFiles() {
+    func testReviewDoesNotFlagDirectoriesAsLargeFiles() throws {
         let dir = TestRepo.makeTempDir()
         defer { TestRepo.cleanup(dir) }
-        try! FileManager.default.createDirectory(atPath: (dir as NSString).appendingPathComponent("sub"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: (dir as NSString).appendingPathComponent("sub"),
+            withIntermediateDirectories: true
+        )
 
         let report = SafetyRails.review(paths: ["sub"], root: dir)
         XCTAssertTrue(report.large.isEmpty)

@@ -128,8 +128,8 @@ enum GitWriter {
     }
 
     /// Finishes the half-done operation once every conflict is settled.
-    static func continueOp(_ op: MergeOp, in repo: String) -> ShellResult {
-        switch op {
+    static func continueOp(_ mergeOp: MergeOp, in repo: String) -> ShellResult {
+        switch mergeOp {
         case .rebase:
             // A rebase continue would open an editor; the message is already written.
             return git(["-c", "core.editor=true", "rebase", "--continue"], repo)
@@ -143,8 +143,8 @@ enum GitWriter {
     }
 
     /// Backs the whole thing out and returns to where the user started.
-    static func abortOp(_ op: MergeOp, in repo: String) -> ShellResult {
-        switch op {
+    static func abortOp(_ mergeOp: MergeOp, in repo: String) -> ShellResult {
+        switch mergeOp {
         case .rebase: return git(["rebase", "--abort"], repo)
         case .cherryPick: return git(["cherry-pick", "--abort"], repo)
         case .merge: return git(["merge", "--abort"], repo)

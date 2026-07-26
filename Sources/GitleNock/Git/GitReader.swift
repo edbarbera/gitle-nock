@@ -36,7 +36,7 @@ enum GitReader {
             "porcelain": { self.git(["status", "--porcelain=v1", "-uall"], path) },
             "gitDir": { self.git(["rev-parse", "--absolute-git-dir"], path) },
             // "behind<TAB>ahead" relative to the tracking branch, if one exists.
-            "counts": { self.git(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], path) },
+            "counts": { self.git(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], path) }
         ])
 
         status.hasCommits = reads["hasCommits"]!.succeeded
@@ -101,7 +101,7 @@ enum GitReader {
     static func identity(in path: String) -> (name: String, email: String)? {
         let reads = runConcurrently([
             "name": { self.git(["config", "user.name"], path) },
-            "email": { self.git(["config", "user.email"], path) },
+            "email": { self.git(["config", "user.email"], path) }
         ])
         let name = reads["name"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let email = reads["email"]!.stdout.trimmingCharacters(in: .whitespacesAndNewlines)

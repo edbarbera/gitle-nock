@@ -21,7 +21,7 @@ final class GitReaderIntegrationTests: XCTestCase {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir)
             TestRepo.cleanup(dir)
         }
-        try! FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dir)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dir)
 
         let status = GitReader.status(of: dir)
         XCTAssertFalse(status.isRepo)
@@ -50,7 +50,7 @@ final class GitReaderIntegrationTests: XCTestCase {
         XCTAssertEqual(status.mergeOp, .none)
     }
 
-    func testStatusReportsNewChangedDeletedFiles() {
+    func testStatusReportsNewChangedDeletedFiles() throws {
         let dir = TestRepo.makeRepo()
         defer { TestRepo.cleanup(dir) }
 
@@ -62,7 +62,7 @@ final class GitReaderIntegrationTests: XCTestCase {
         // Three independent, uncommitted changes against that history.
         TestRepo.write("hello.txt", "changed\n", in: dir)
         TestRepo.write("new-file.txt", "new\n", in: dir)
-        try! FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("to-delete.txt"))
+        try FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("to-delete.txt"))
 
         let status = GitReader.status(of: dir)
         let byPath = Dictionary(uniqueKeysWithValues: status.changes.map { ($0.path, $0.kind) })

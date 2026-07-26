@@ -29,10 +29,10 @@ final class GitWriterIntegrationTests: XCTestCase {
         XCTAssertEqual(GitReader.lastSaveMessage(in: dir), "initial", "must not have created a commit")
     }
 
-    func testSavePicksUpDeletedFiles() {
+    func testSavePicksUpDeletedFiles() throws {
         let dir = TestRepo.makeRepo()
         defer { TestRepo.cleanup(dir) }
-        try! FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("hello.txt"))
+        try FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("hello.txt"))
 
         let result = GitWriter.save(paths: ["hello.txt"], message: "remove hello", in: dir)
         XCTAssertTrue(result.succeeded, result.message)
@@ -114,7 +114,9 @@ final class GitWriterIntegrationTests: XCTestCase {
         XCTAssertTrue(result.succeeded, result.message)
         XCTAssertTrue(GitReader.status(of: dir).isClean)
         XCTAssertEqual(TestRepo.contents("hello.txt", in: dir), "hello\n")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("untracked-new.txt")))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("untracked-new.txt"))
+        )
     }
 
     func testDiscardAllChangesWithoutCommitsClearsIndexAndWorkingTree() {
@@ -127,7 +129,9 @@ final class GitWriterIntegrationTests: XCTestCase {
         let result = GitWriter.discardAllChanges(hasCommits: false, in: dir)
         XCTAssertTrue(result.succeeded, result.message)
         XCTAssertFalse(GitReader.hasAnythingToSave(in: dir))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("untracked.txt")))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("untracked.txt"))
+        )
     }
 
     // MARK: - initRepo / writeGitignore / addRemote

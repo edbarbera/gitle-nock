@@ -43,6 +43,10 @@ struct NotchRootView: View {
         // `Theme` is static state, which SwiftUI cannot observe. Writing it here
         // — ahead of every token read below — and keying the tree on
         // `appearanceToken` is what makes a preference change actually repaint.
+        // The `let` is load-bearing: inside a `@ViewBuilder` body, a bare
+        // `_ = expr` is swallowed into `buildExpression` and fails to conform
+        // to `View`, whereas `let _ = expr` is a declaration ViewBuilder skips.
+        // swiftlint:disable:next redundant_discardable_let
         let _ = Theme.apply(settings)
 
         VStack(spacing: 0) {

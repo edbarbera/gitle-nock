@@ -66,7 +66,8 @@ final class GitleGrabE2ETests: XCTestCase {
         XCTAssertEqual(status.conflictedFiles, ["shared.txt"])
 
         // Resolve exactly as the conflicts screen does, using the op it discovered.
-        XCTAssertTrue(GitWriter.keepTheirs("shared.txt", in: devB).succeeded) // "theirs" in a rebase = devB's own replayed commit
+        // "theirs" in a rebase = devB's own replayed commit
+        XCTAssertTrue(GitWriter.keepTheirs("shared.txt", in: devB).succeeded)
         XCTAssertTrue(GitWriter.markResolved("shared.txt", in: devB).succeeded)
         let finish = GitWriter.continueOp(status.mergeOp, in: devB)
         XCTAssertTrue(finish.succeeded, finish.message)

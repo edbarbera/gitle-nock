@@ -124,7 +124,8 @@ struct FilesView: View {
         VStack(alignment: .leading, spacing: 12) {
             BackHeader(
                 title: "What changed",
-                subtitle: "\(state.status.changes.count) file\(state.status.changes.count == 1 ? "" : "s") since your last save"
+                subtitle: "\(state.status.changes.count) file\(state.status.changes.count == 1 ? "" : "s") "
+                    + "since your last save"
             )
 
             PanelScroll {
@@ -149,7 +150,7 @@ struct FilesView: View {
 /// file looks the same wherever it's mentioned.
 struct FileRow: View {
     let change: FileChange
-    var trailing: String? = nil
+    var trailing: String?
 
     static func tint(for kind: FileChange.Kind) -> Color {
         switch kind {
@@ -202,7 +203,9 @@ struct ReposView: View {
         VStack(alignment: .leading, spacing: 12) {
             BackHeader(
                 title: "Your projects",
-                subtitle: state.repos.count == 1 ? "1 folder being watched" : "\(state.repos.count) folders being watched"
+                subtitle: state.repos.count == 1
+                    ? "1 folder being watched"
+                    : "\(state.repos.count) folders being watched"
             )
 
             PanelScroll {

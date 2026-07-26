@@ -25,13 +25,19 @@ final class NotchWindowController {
 
     init(state: AppState) {
         self.state = state
-
         panel = NotchPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
+        configurePanel()
+        subscribeToStateChanges()
+        applyAppearance()
+        observeScreenParameterChanges()
+    }
+
+    private func configurePanel() {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.backgroundColor = .clear
@@ -49,7 +55,9 @@ final class NotchWindowController {
                 .environmentObject(viewModel)
                 .environmentObject(state.settings)
         )
+    }
 
+    private func subscribeToStateChanges() {
         // Typing in the save box shouldn't be interrupted by the cursor wandering off.
         state.$screen
             .sink { [weak self] screen in
@@ -96,8 +104,9 @@ final class NotchWindowController {
                 Task { @MainActor in self?.applyAppearance() }
             }
             .store(in: &cancellables)
-        applyAppearance()
+    }
 
+    private func observeScreenParameterChanges() {
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -199,7 +208,9 @@ final class NotchWindowController {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
             Task { @MainActor in self?.evaluatePointer() }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged]
+        ) { [weak self] event in
             Task { @MainActor in self?.evaluatePointer() }
             return event
         }
